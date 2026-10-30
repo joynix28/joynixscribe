@@ -8,6 +8,10 @@ JoynixScribe est une application Android open source (Kotlin + Jetpack Compose) 
 transforme la voix en texte et l'insère là où tu tapes : SMS, e-mail, Discord,
 navigateur, notes, formulaires… Elle ne remplace pas le clavier, elle s'y ajoute.
 
+## Téléchargement
+
+APK signé : [JoynixScribe-2.2.0.apk](./JoynixScribe-2.2.0.apk)
+
 ## Présentation
 
 - **Bulle flottante** toujours accessible, personnalisable (couleur, icône, taille,
