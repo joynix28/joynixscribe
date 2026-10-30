@@ -20,3 +20,6 @@ signing/
 *.jks
 *.keystore
 *.apk
+
+# APK de release publiée explicitement (les builds restent ignorés)
+!JoynixScribe-*.apk
