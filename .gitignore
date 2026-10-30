@@ -11,7 +11,6 @@ captures/
 
 # Journaux et artefacts temporaires
 *.log
-*.apk
 *.aab
 *.hprof
 
