@@ -69,6 +69,7 @@ class SettingsStore(private val context: Context) {
             groqFormatting = p[Keys.GROQ_FORMATTING] ?: true,
             sendAppContext = p[Keys.SEND_APP_CONTEXT] ?: true,
             appAwarePrompts = p[Keys.APP_AWARE_PROMPTS] ?: true,
+            streamingMode = p[Keys.STREAMING_MODE] ?: false,
             dailyKeyRequestLimit = (p[Keys.DAILY_KEY_LIMIT] ?: 0).coerceIn(0, 500),
             onboardingDone = p[Keys.ONBOARDING] ?: false,
         )
@@ -135,6 +136,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setGroqFormatting(value: Boolean) = edit { it[Keys.GROQ_FORMATTING] = value }
     suspend fun setSendAppContext(value: Boolean) = edit { it[Keys.SEND_APP_CONTEXT] = value }
     suspend fun setAppAwarePrompts(value: Boolean) = edit { it[Keys.APP_AWARE_PROMPTS] = value }
+    suspend fun setStreamingMode(value: Boolean) = edit { it[Keys.STREAMING_MODE] = value }
     suspend fun setDailyKeyRequestLimit(value: Int) = edit { it[Keys.DAILY_KEY_LIMIT] = value.coerceIn(0, 500) }
     suspend fun setOnboardingDone(value: Boolean) = edit { it[Keys.ONBOARDING] = value }
 
@@ -258,6 +260,7 @@ class SettingsStore(private val context: Context) {
         val GROQ_FORMATTING = booleanPreferencesKey("groq_formatting")
         val SEND_APP_CONTEXT = booleanPreferencesKey("send_app_context")
         val APP_AWARE_PROMPTS = booleanPreferencesKey("app_aware_prompts")
+        val STREAMING_MODE = booleanPreferencesKey("streaming_mode")
         val DAILY_KEY_LIMIT = intPreferencesKey("daily_key_limit")
         val ONBOARDING = booleanPreferencesKey("onboarding_done")
         val PROMPTS = stringPreferencesKey("prompts_v1")

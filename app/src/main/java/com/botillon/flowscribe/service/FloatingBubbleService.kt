@@ -26,6 +26,7 @@ import com.botillon.flowscribe.ai.EngineInput
 import com.botillon.flowscribe.ai.EngineResult
 import com.botillon.flowscribe.ai.TranscriptionEngine
 import com.botillon.flowscribe.audio.AudioRecorder
+import com.botillon.flowscribe.audio.WavEncoder
 import com.botillon.flowscribe.data.ApiKeyStore
 import com.botillon.flowscribe.data.AppSettings
 import com.botillon.flowscribe.data.BubbleGesture
@@ -41,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -92,6 +94,13 @@ class FloatingBubbleService : Service() {
 
     private var currentAppName = ""
     private var currentAppPackage = ""
+
+    // Mode streaming
+    private var committedText = ""
+    private var segmentStartBytes = 0
+    private var streamJob: Job? = null
+    private var lastSpeechMs = 0L
+    private var speechActive = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -281,8 +290,17 @@ class FloatingBubbleService : Service() {
             return
         }
         recording = true
+        committedText = ""
+        segmentStartBytes = 0
+        lastSpeechMs = 0L
+        speechActive = false
         haptic(14)
-        updateNotification("Enregistrement en cours", "Appuie sur ■ pour terminer")
+        updateNotification("Enregistrement en cours", "Appuyez sur ■ pour terminer")
+
+        if (settings.streamingMode) {
+            streamJob?.cancel()
+            streamJob = scope.launch { runStreamingLoop() }
+        }
 
         timerJob?.cancel()
         timerJob = scope.launch {
@@ -346,20 +364,149 @@ class FloatingBubbleService : Service() {
         recording = false
         timerJob?.cancel()
         previewJob?.cancel()
+        streamJob?.cancel()
+        streamJob = null
         _state.update { it.copy(phase = BubblePhase.PROCESSING, partialText = "") }
         if (settings.bubbleGesture == BubbleGesture.HOLD) expand()
         updateNotification("Transcription…", "Un seul appel, réponse rapide")
         haptic(18)
 
+        // Finalise le segment en cours en mode streaming.
+        if (settings.streamingMode) {
+            val remaining = recorder.pcmSize() - segmentStartBytes
+            if (remaining >= 16000) {
+                finalizeSegment(segmentStartBytes, recorder.pcmSize())
+                segmentStartBytes = recorder.pcmSize()
+            }
+        }
+
         val recording = withContext(Dispatchers.IO) { recorder.stop() }
         if (recording == null || recording.pcmBytes < 6_000) {
+            if (settings.streamingMode && committedText.isNotBlank()) {
+                val insertion = DictationAccessibilityService.instance?.insertAtCursor(committedText, settings.insertMode)
+                var note: String
+                var copied = false
+                when (insertion) {
+                    is InsertionResult.Success -> note = "Inséré au curseur"
+                    InsertionResult.NoField -> { copyToClipboard(committedText); copied = true; note = "Aucun champ actif · texte copié" }
+                    InsertionResult.SecureField -> { copyToClipboard(committedText); copied = true; note = "Champ sécurisé · texte copié" }
+                    InsertionResult.NoService -> { copyToClipboard(committedText); copied = true; note = "Accessibilité inactive · texte copié" }
+                    is InsertionResult.Failed -> { copyToClipboard(committedText); copied = true; note = "Insertion refusée · texte copié" }
+                    null -> { copyToClipboard(committedText); copied = true; note = "Accessibilité inactive · texte copié" }
+                }
+                _state.update { it.copy(phase = BubblePhase.RESULT, resultText = committedText, providerLabel = "Streaming", model = "", latencyMs = 0, insertionNote = note, copied = copied, accessibilityConnected = DictationAccessibilityService.isConnected) }
+                expand()
+                return
+            }
             _state.update { it.copy(phase = BubblePhase.IDLE) }
             updateNotification()
             showError("Dictée trop courte, réessaie en parlant un peu plus longtemps.")
             return
         }
         lastWav = recording.wav
+        if (settings.streamingMode && committedText.isNotBlank()) {
+            val insertion = DictationAccessibilityService.instance?.insertAtCursor(committedText, settings.insertMode)
+            var note: String
+            var copied = false
+            when (insertion) {
+                is InsertionResult.Success -> note = "Inséré au curseur"
+                InsertionResult.NoField -> { copyToClipboard(committedText); copied = true; note = "Aucun champ actif · texte copié" }
+                InsertionResult.SecureField -> { copyToClipboard(committedText); copied = true; note = "Champ sécurisé · texte copié" }
+                InsertionResult.NoService -> { copyToClipboard(committedText); copied = true; note = "Accessibilité inactive · texte copié" }
+                is InsertionResult.Failed -> { copyToClipboard(committedText); copied = true; note = "Insertion refusée · texte copié" }
+                null -> { copyToClipboard(committedText); copied = true; note = "Accessibilité inactive · texte copié" }
+            }
+            _state.update {
+                it.copy(
+                    phase = BubblePhase.RESULT,
+                    resultText = committedText,
+                    providerLabel = "Streaming",
+                    model = "",
+                    latencyMs = 0,
+                    insertionNote = note,
+                    copied = copied,
+                    accessibilityConnected = DictationAccessibilityService.isConnected,
+                )
+            }
+            expand()
+            haptic(22)
+            updateNotification("JoynixScribe est prêt", "Dictée en streaming")
+            return
+        }
         transcribe(recording.wav)
+    }
+
+    private suspend fun runStreamingLoop() {
+        while (currentCoroutineContext().isActive && recording) {
+            delay(350)
+            if (!recording) break
+            val size = recorder.pcmSize()
+            val sliceStart = (size - 4800).coerceAtLeast(0)
+            val slice = recorder.pcmSlice(sliceStart, size)
+            val energy = rmsBytes(slice)
+            val now = recorder.elapsedMs
+            if (energy > 0.015f) {
+                speechActive = true
+                lastSpeechMs = now
+            }
+            val segmentLen = size - segmentStartBytes
+            val silenceLongEnough = !speechActive && (now - lastSpeechMs) >= 900
+            val forceSplit = segmentLen >= 15 * 16000 * 2
+            if (segmentLen >= 16000 && (silenceLongEnough || forceSplit)) {
+                finalizeSegment(segmentStartBytes, size)
+                segmentStartBytes = size
+                speechActive = false
+            }
+            _state.update { it.copy(partialText = committedText.trim()) }
+        }
+    }
+
+    private suspend fun finalizeSegment(start: Int, end: Int) {
+        val bytes = recorder.pcmSlice(start, end)
+        if (bytes.size < 16000) return
+        val even = bytes.size - (bytes.size % 2)
+        val trimmed = WavEncoder.trimSilence(bytes.copyOf(even))
+        if (trimmed.size < 8000) return
+        val wav = WavEncoder.encode(trimmed)
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                engine.transcribe(
+                    EngineInput(
+                        wav = wav,
+                        settings = settings,
+                        prompts = prompts,
+                        dictionary = dictionary,
+                        preview = false,
+                        appName = currentAppName,
+                        appPackage = currentAppPackage,
+                    ),
+                )
+            }.getOrNull()
+        }
+        if (result is EngineResult.Success) {
+            val t = result.data.text.trim()
+            if (t.isNotBlank()) {
+                committedText = if (committedText.isBlank()) t else "$committedText $t"
+                _state.update { it.copy(partialText = committedText) }
+            }
+        }
+    }
+
+    private fun rmsBytes(buffer: ByteArray): Float {
+        if (buffer.size < 2) return 0f
+        var sum = 0.0
+        var count = 0
+        var i = 0
+        val usable = buffer.size - 1
+        while (i < usable) {
+            val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort().toInt()
+            val normalized = sample / 32768f
+            sum += normalized * normalized
+            count++
+            i += 2
+        }
+        if (count == 0) return 0f
+        return kotlin.math.sqrt(sum / count).toFloat().coerceIn(0f, 1f)
     }
 
     private fun transcribe(wav: ByteArray) {
@@ -487,6 +634,8 @@ class FloatingBubbleService : Service() {
         recording = false
         timerJob?.cancel()
         previewJob?.cancel()
+        streamJob?.cancel()
+        streamJob = null
         transcribeJob?.cancel()
         recorder.cancel()
         _state.update { it.copy(phase = BubblePhase.IDLE, partialText = "") }

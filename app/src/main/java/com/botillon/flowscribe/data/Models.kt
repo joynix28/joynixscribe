@@ -226,6 +226,8 @@ data class AppSettings(
     val sendAppContext: Boolean = true,
     /** Choisit automatiquement un style dont appPackages correspond à l'app active. */
     val appAwarePrompts: Boolean = true,
+    /** Transcrit au fil de la parole au lieu d'attendre la fin. */
+    val streamingMode: Boolean = false,
     /** 0 = pas de plafond. Sinon, une clé est ignorée après N requêtes dans la journée. */
     val dailyKeyRequestLimit: Int = 0,
     val onboardingDone: Boolean = false,

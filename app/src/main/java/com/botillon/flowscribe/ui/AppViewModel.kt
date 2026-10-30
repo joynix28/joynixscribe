@@ -295,6 +295,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setGroqFormatting(value: Boolean) = launchStore { setGroqFormatting(value) }
     fun setSendAppContext(value: Boolean) = launchStore { setSendAppContext(value) }
     fun setAppAwarePrompts(value: Boolean) = launchStore { setAppAwarePrompts(value) }
+    fun setStreamingMode(value: Boolean) = launchStore { setStreamingMode(value) }
     fun setDailyKeyRequestLimit(value: Int) = launchStore { setDailyKeyRequestLimit(value) }
 
     fun completeOnboarding() = launchStore { setOnboardingDone(true) }

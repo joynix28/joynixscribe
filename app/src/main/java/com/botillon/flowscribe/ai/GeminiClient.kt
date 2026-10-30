@@ -224,6 +224,7 @@ data class ProviderOutcome(
     val totalTokens: Long = 0L,
     val audioSeconds: Double = 0.0,
     val neurons: Double = 0.0,
+    val noSpeechProb: Double = 0.0,
 ) {
     companion object {
         fun ok(
@@ -236,6 +237,7 @@ data class ProviderOutcome(
             totalTokens: Long = 0L,
             audioSeconds: Double = 0.0,
             neurons: Double = 0.0,
+            noSpeechProb: Double = 0.0,
         ) = ProviderOutcome(
             ok = true,
             provider = provider,
@@ -247,6 +249,7 @@ data class ProviderOutcome(
             totalTokens = totalTokens,
             audioSeconds = audioSeconds,
             neurons = neurons,
+            noSpeechProb = noSpeechProb,
         )
 
         fun failure(

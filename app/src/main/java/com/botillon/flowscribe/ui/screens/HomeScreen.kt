@@ -323,7 +323,7 @@ private fun TopBar() {
             )
         }
         StatusPill(
-            text = "v2.0",
+            text = "v2.1",
             tint = MaterialTheme.colorScheme.secondary,
             icon = Icons.Rounded.Bolt,
         )

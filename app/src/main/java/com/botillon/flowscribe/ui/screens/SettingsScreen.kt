@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardVoice
 import androidx.compose.material.icons.rounded.Language
@@ -237,23 +238,20 @@ fun SettingsScreen(
                     )
                 }
                 DividerLine()
+                DividerLine()
                 SwitchRow(
-                    icon = Icons.Rounded.Visibility,
-                    title = "Aperçu pendant la dictée",
-                    subtitle = "Envoie la fin de l'audio toutes les quelques secondes (coût supplémentaire)",
-                    checked = settings.livePreview,
-                    onChange = { vm.setLivePreview(it) },
+                    icon = Icons.Rounded.GraphicEq,
+                    title = "Mode streaming (live)",
+                    subtitle = "Transcrit au fil de la parole : le texte apparaît pendant que tu parles, sans attendre la fin",
+                    checked = settings.streamingMode,
+                    onChange = { vm.setStreamingMode(it) },
                 )
-                if (settings.livePreview) {
-                    FlowSlider(
-                        title = "Intervalle d'aperçu",
-                        valueLabel = formatSeconds(settings.previewIntervalMs),
-                        value = settings.previewIntervalMs.toFloat(),
-                        valueRange = 2000f..6000f,
-                        steps = 3,
-                        onChange = { vm.setPreviewInterval(it.toLong()) },
-                    )
-                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Segmentation automatique sur les silences. Coût un peu plus élevé (plusieurs appels), mais retour immédiat. En cas de micro de mauvaise qualité, les segments non vocaux sont ignorés.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 DividerLine()
                 FlowSlider(
                     title = "Durée maximale d'une dictée",

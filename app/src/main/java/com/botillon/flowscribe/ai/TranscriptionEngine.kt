@@ -142,6 +142,14 @@ class TranscriptionEngine(
             )
         }
 
+        if (outcome.noSpeechProb >= 0.75) {
+            return EngineResult.Failure("Aucune parole détectée")
+        }
+        val cleanedOutcome = outcome.text.trim()
+        if (cleanedOutcome.length < 2 || cleanedOutcome.all { !it.isLetterOrDigit() }) {
+            return EngineResult.Failure("Aucune parole détectée")
+        }
+
         var text = outcome.text
         var usage = outcome.toUsage()
 

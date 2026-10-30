@@ -211,6 +211,15 @@ class AudioRecorder {
     val elapsedMs: Long
         get() = if (startedAt == 0L) 0L else System.currentTimeMillis() - startedAt
 
+    fun pcmSize(): Int = synchronized(lock) { pcm.size() }
+
+    fun pcmSlice(startByte: Int, endByte: Int): ByteArray {
+        val copy = synchronized(lock) { pcm.toByteArray() }
+        val s = startByte.coerceIn(0, copy.size)
+        val e = endByte.coerceIn(s, copy.size)
+        return copy.copyOfRange(s, e)
+    }
+
     private fun appendToTail(buffer: ByteArray, read: Int) {
         synchronized(lock) {
             var i = 0
