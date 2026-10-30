@@ -1,11 +1,28 @@
 # JoynixScribe
 
-Dictée vocale universelle pour Android 12+ (cible Android 15+). Une bulle flottante,
-un tap pour parler, un tap pour arrêter : le texte est transcrit par IA puis inséré
-dans le champ actif de n'importe quelle application, sans changer de clavier.
+**Dictée vocale universelle pour Android** — une bulle flottante, un tap pour parler,
+un tap pour arrêter : le texte est transcrit par IA puis inséré dans le champ actif
+de n'importe quelle application, sans changer de clavier.
 
-Open source, sans analytics, sans serveur intermédiaire. L'audio ne quitte l'appareil
-que pour être envoyé au fournisseur d'IA choisi (Gemini, Groq ou Cloudflare Workers AI).
+JoynixScribe est une application Android open source (Kotlin + Jetpack Compose) qui
+transforme la voix en texte et l'insère là où tu tapes : SMS, e-mail, Discord,
+navigateur, notes, formulaires… Elle ne remplace pas le clavier, elle s'y ajoute.
+
+## Présentation
+
+- **Bulle flottante** toujours accessible, personnalisable (couleur, icône, taille,
+  opacité, geste tap ou maintenir-pour-parler).
+- **3 moteurs IA** : Google Gemini, Groq Whisper, Cloudflare Workers AI.
+- **Mode streaming (live)** : le texte apparaît pendant que tu parles, segmenté sur
+  les silences, sans attendre la fin.
+- **Styles adaptatifs** : le style de sortie se choisit automatiquement selon
+  l'application active (détection du nom et du package).
+- **Dictionnaire personnel**, ponctuation automatique, typographie française.
+- **Confidentialité** : l'écran n'est jamais lu ni capturé ; l'audio ne quitte
+  l'appareil que pour le fournisseur choisi.
+- **Compteurs d'usage** par clé (requêtes, tokens, secondes audio, neurons) et
+  plafond quotidien optionnel.
+- **Open source**, sans analytics, sans serveur intermédiaire.
 
 ## Fonctionnalités
 
