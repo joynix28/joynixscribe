@@ -54,6 +54,8 @@ La signature release utilise `signing/flowscribe-release.jks` et
 mises à jour gardent la même signature. Ne jamais publier ces fichiers.
 
 APK généré : `app/build/outputs/apk/release/app-release.apk`.
+La version signée est aussi versionnée à la racine du dépôt :
+`FlowScribe-1.0.0.apk` (téléchargement direct depuis GitLab, dépôt privé).
 
 ## Installation sur HyperOS
 
