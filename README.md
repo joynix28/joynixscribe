@@ -126,6 +126,17 @@ keyAlias=...
 keyPassword=...
 ```
 
+## Application desktop (Windows)
+
+Un client desktop Rust (egui) est fourni dans `desktop/`. Il cross-compile vers
+Windows (.exe) avec `cargo build --target x86_64-pc-windows-gnu --release`.
+
+Fonctionnalités : enregistrement micro, transcription Gemini/Groq/Cloudflare,
+copie presse-papiers, saisie automatique (enigo), fenêtre toujours au premier plan,
+raccourci Espace pour démarrer/arrêter.
+
+L'exécutable Windows est publié dans la release.
+
 ## Licence
 
 Licence d'attribution JoynixScribe (JAL) v1.0 — voir `LICENSE`.

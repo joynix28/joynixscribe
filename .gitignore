@@ -23,3 +23,4 @@ signing/
 
 # APK de release publiée explicitement (les builds restent ignorés)
 !JoynixScribe-*.apk
+desktop/target/
