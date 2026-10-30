@@ -93,4 +93,8 @@ keyPassword=...
 
 ## Licence
 
-Open source. Voir `LICENSE`.
+Licence d'attribution JoynixScribe (JAL) v1.0 — voir `LICENSE`.
+
+Toute réutilisation du code, des idées ou du concept doit créditer **Joynix** et
+**JoynixScribe** avec un lien vers le dépôt :
+https://gitlab.com/joynix28/joynixscribe
