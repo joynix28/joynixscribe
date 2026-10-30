@@ -40,10 +40,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FiberManualRecord
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.OpenInNew
@@ -88,8 +90,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import com.botillon.flowscribe.data.AppSettings
+import com.botillon.flowscribe.data.BubbleAccent
+import com.botillon.flowscribe.data.BubbleGesture
+import com.botillon.flowscribe.data.BubbleIcon
 import com.botillon.flowscribe.data.PromptPreset
-import com.botillon.flowscribe.ui.theme.FlowScribeTheme
+import com.botillon.flowscribe.ui.theme.JoynixScribeTheme
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
@@ -112,11 +117,19 @@ data class OverlayState(
     val prompts: List<PromptPreset> = emptyList(),
     val activePromptId: String = "",
     val accessibilityConnected: Boolean = true,
+    val usageTokens: Long = 0L,
+    val usageAudioSeconds: Double = 0.0,
+    val usageNeurons: Double = 0.0,
+    val appName: String = "",
+    val appPackage: String = "",
+    val promptName: String = "",
 )
 
 data class OverlayActions(
     val onTap: () -> Unit,
     val onLongPress: () -> Unit,
+    val onPressStart: () -> Unit,
+    val onPressEnd: (Boolean) -> Unit,
     val onStop: () -> Unit,
     val onCancel: () -> Unit,
     val onDismiss: () -> Unit,
@@ -142,7 +155,7 @@ class BubbleOverlayView(
         setViewTreeViewModelStoreOwner(lifecycleOwner)
         setContent {
             val overlay by state.collectAsState()
-            FlowScribeTheme(darkTheme = true, dynamicColor = overlay.settings.dynamicColor) {
+            JoynixScribeTheme(darkTheme = true, dynamicColor = overlay.settings.dynamicColor) {
                 OverlayContent(overlay, actions)
             }
         }
@@ -187,7 +200,11 @@ private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, Saved
 
 @Composable
 private fun OverlayContent(state: OverlayState, actions: OverlayActions) {
-    val expanded = state.phase != BubblePhase.IDLE
+    // En mode « maintenir », la bulle reste visible pendant l'enregistrement :
+    // sinon le relâchement du doigt serait perdu quand le panneau remplace la bulle.
+    val holdRecording = state.settings.bubbleGesture == BubbleGesture.HOLD &&
+        state.phase == BubblePhase.RECORDING
+    val expanded = state.phase != BubblePhase.IDLE && !holdRecording
     AnimatedContent(
         targetState = expanded,
         transitionSpec = {
@@ -208,33 +225,47 @@ private fun OverlayContent(state: OverlayState, actions: OverlayActions) {
 private fun Bubble(state: OverlayState, actions: OverlayActions) {
     val size = state.settings.bubbleSizeDp.dp
     val opacity = state.settings.bubbleOpacity
-    val infinite = rememberInfiniteTransition(label = "bubble")
-    val pulse by infinite.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Reverse),
-        label = "pulse",
-    )
     val listening = state.phase == BubblePhase.RECORDING
+    val pulse = if (listening) {
+        val infinite = rememberInfiniteTransition(label = "bubble")
+        val animated by infinite.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Reverse),
+            label = "pulse",
+        )
+        animated
+    } else {
+        1f
+    }
+    val accent = state.settings.bubbleAccent
+    val base = Color(accent.base)
+    val deep = Color(accent.deep)
+    val glow = Color(accent.glow)
+    val hold = state.settings.bubbleGesture == BubbleGesture.HOLD
+    val idleIcon = when (state.settings.bubbleIcon) {
+        BubbleIcon.MIC -> Icons.Rounded.Mic
+        BubbleIcon.SPARK -> Icons.Rounded.AutoAwesome
+        BubbleIcon.WAVE -> Icons.Rounded.GraphicEq
+        BubbleIcon.DOT -> Icons.Rounded.FiberManualRecord
+    }
 
     Box(
         modifier = Modifier
             .size(size)
             .padding(4.dp)
-            .shadow(if (listening) 18.dp else 10.dp, CircleShape, ambientColor = Color(0xFF7C5CFF), spotColor = Color(0xFF7C5CFF))
+            .shadow(if (listening) 20.dp else 10.dp, CircleShape, ambientColor = glow, spotColor = glow)
             .clip(CircleShape)
             .background(
                 if (listening) {
                     Brush.radialGradient(
-                        listOf(Color(0xFFFF9A7A), Color(0xFFE24B4B), Color(0xFF7A1530)),
+                        listOf(Color(0xFFFFB199), Color(0xFFE24B4B), Color(0xFF7A1530)),
                     )
                 } else {
-                    Brush.radialGradient(
-                        listOf(Color(0xFF9E86FF), Color(0xFF6B4CF0), Color(0xFF2A1B6B)),
-                    )
+                    Brush.radialGradient(listOf(base, deep, deep.copy(alpha = 0.92f)))
                 },
             )
-            .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+            .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape)
             .alpha(opacity)
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -246,10 +277,15 @@ private fun Bubble(state: OverlayState, actions: OverlayActions) {
                     onDragCancel = { actions.onDragEnd() },
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(state.settings.bubbleGesture) {
                 detectTapGestures(
-                    onTap = { actions.onTap() },
-                    onLongPress = { actions.onLongPress() },
+                    onPress = {
+                        if (hold) actions.onPressStart()
+                        val released = tryAwaitRelease()
+                        if (hold) actions.onPressEnd(released)
+                    },
+                    onTap = { if (!hold) actions.onTap() },
+                    onLongPress = { if (!hold) actions.onLongPress() },
                 )
             },
         contentAlignment = Alignment.Center,
@@ -258,7 +294,7 @@ private fun Bubble(state: OverlayState, actions: OverlayActions) {
             Box(
                 Modifier
                     .size(size * pulse)
-                    .border(1.5.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+                    .border(1.5.dp, Color.White.copy(alpha = 0.20f), CircleShape),
             )
         }
         Icon(
@@ -267,9 +303,9 @@ private fun Bubble(state: OverlayState, actions: OverlayActions) {
                 BubblePhase.PROCESSING -> Icons.Rounded.GraphicEq
                 BubblePhase.RESULT -> Icons.Rounded.Check
                 BubblePhase.ERROR -> Icons.Rounded.ErrorOutline
-                else -> Icons.Rounded.Mic
+                else -> idleIcon
             },
-            contentDescription = "FlowScribe",
+            contentDescription = "JoynixScribe",
             tint = Color.White,
             modifier = Modifier.size(size * 0.42f),
         )
@@ -378,7 +414,8 @@ private fun ProcessingPanel(state: OverlayState, actions: OverlayActions) {
         Column {
             Text("Transcription…", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                "Gemini et Groq en parallèle" + if (state.settings.hedgeEnabled) " · hedged" else "",
+                state.settings.primary.shortLabel + " · " +
+                    if (state.settings.hedgeEnabled) "repli anticipé" else "un seul appel",
                 style = MaterialTheme.typography.labelSmall,
                 color = scheme.onSurfaceVariant,
             )
@@ -428,6 +465,22 @@ private fun ResultPanel(state: OverlayState, actions: OverlayActions) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            val usage = usageLabel(state)
+            if (usage.isNotBlank() || state.appName.isNotBlank()) {
+                Text(
+                    buildString {
+                        if (usage.isNotBlank()) append(usage)
+                        if (state.appName.isNotBlank()) {
+                            if (isNotEmpty()) append(" · ")
+                            append(state.appName)
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 
@@ -509,7 +562,7 @@ private fun ErrorPanel(state: OverlayState, actions: OverlayActions) {
 private fun MenuPanel(state: OverlayState, actions: OverlayActions) {
     val scheme = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("FlowScribe", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("JoynixScribe", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
         MiniAction(Icons.Rounded.Close, "Fermer le menu", actions.onDismiss)
     }
@@ -717,4 +770,16 @@ private fun formatDuration(ms: Long): String {
 private fun formatLatency(ms: Long): String {
     val seconds = ms / 1000.0
     return String.format(Locale.FRANCE, "%.1f s", seconds)
+}
+
+private fun usageLabel(state: OverlayState): String = buildString {
+    if (state.usageTokens > 0) append("${state.usageTokens} tokens")
+    if (state.usageAudioSeconds > 0.0) {
+        if (isNotEmpty()) append(" · ")
+        append(String.format(Locale.FRANCE, "%.1f s audio", state.usageAudioSeconds))
+    }
+    if (state.usageNeurons > 0.0) {
+        if (isNotEmpty()) append(" · ")
+        append(String.format(Locale.FRANCE, "%.2f neurons", state.usageNeurons))
+    }
 }

@@ -171,7 +171,7 @@ private val FlowTypography = Typography(
 )
 
 @Composable
-fun FlowScribeTheme(
+fun JoynixScribeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,

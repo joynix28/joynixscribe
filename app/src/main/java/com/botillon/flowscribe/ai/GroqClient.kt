@@ -5,9 +5,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -36,7 +38,7 @@ class GroqClient {
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", "flowscribe.wav", wav.toRequestBody(WAV_MEDIA))
             .addFormDataPart("model", model)
-            .addFormDataPart("response_format", "json")
+            .addFormDataPart("response_format", "verbose_json")
             .addFormDataPart("temperature", "0")
             .addFormDataPart("condition_on_previous_text", "false")
 
@@ -62,9 +64,16 @@ class GroqClient {
                         latencyMs = System.currentTimeMillis() - started,
                     )
                 }
-                val text = runCatching {
-                    json.parseToJsonElement(body).jsonObject["text"]?.jsonPrimitive?.contentOrNull
-                }.getOrNull()?.trim().orEmpty()
+                val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+                val text = root?.get("text")?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+                val duration = root?.get("duration")?.jsonPrimitive?.doubleOrNull
+                    ?: audioSeconds(wav.size)
+                val usage = root?.get("usage")?.jsonObject
+                    ?: root?.get("x_groq")?.jsonObject?.get("usage")?.jsonObject
+                val promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+                val completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+                val totalTokens = usage?.get("total_tokens")?.jsonPrimitive?.longOrNull
+                    ?: (promptTokens + completionTokens)
 
                 if (text.isBlank()) {
                     ProviderOutcome.failure(
@@ -72,7 +81,16 @@ class GroqClient {
                         latencyMs = System.currentTimeMillis() - started,
                     )
                 } else {
-                    ProviderOutcome.ok(Provider.GROQ, model, text, System.currentTimeMillis() - started)
+                    ProviderOutcome.ok(
+                        provider = Provider.GROQ,
+                        model = model,
+                        text = text,
+                        latencyMs = System.currentTimeMillis() - started,
+                        promptTokens = promptTokens,
+                        completionTokens = completionTokens,
+                        totalTokens = totalTokens,
+                        audioSeconds = duration,
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -93,7 +111,7 @@ class GroqClient {
         text: String,
         instruction: String,
         timeoutMs: Long = 12_000L,
-    ): Result<String> {
+    ): Result<GroqFormatOutcome> {
         val payload = buildJsonObject {
             put("model", FORMAT_MODEL)
             put("temperature", 0.1)
@@ -124,12 +142,27 @@ class GroqClient {
                 if (!response.isSuccessful) {
                     return Result.failure(IllegalStateException(parseError(body).ifBlank { "HTTP ${response.code}" }))
                 }
-                val content = runCatching {
-                    json.parseToJsonElement(body).jsonObject["choices"]?.jsonArray?.firstOrNull()
-                        ?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull
-                }.getOrNull()?.trim().orEmpty()
-                if (content.isBlank()) Result.failure(IllegalStateException("Reformatage vide"))
-                else Result.success(content)
+                val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+                val content = root?.get("choices")?.jsonArray?.firstOrNull()
+                    ?.jsonObject?.get("message")?.jsonObject?.get("content")
+                    ?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+                val usage = root?.get("usage")?.jsonObject
+                val promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+                val completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.longOrNull ?: 0L
+                val totalTokens = usage?.get("total_tokens")?.jsonPrimitive?.longOrNull
+                    ?: (promptTokens + completionTokens)
+                if (content.isBlank()) {
+                    Result.failure(IllegalStateException("Reformatage vide"))
+                } else {
+                    Result.success(
+                        GroqFormatOutcome(
+                            text = content,
+                            promptTokens = promptTokens,
+                            completionTokens = completionTokens,
+                            totalTokens = totalTokens,
+                        ),
+                    )
+                }
             }
         } catch (e: Exception) {
             Result.failure(IllegalStateException(friendlyNetworkError(e)))
@@ -169,6 +202,9 @@ class GroqClient {
         return if (seconds != null) seconds * 1000 else 20_000L
     }
 
+    private fun audioSeconds(wavBytes: Int): Double =
+        ((wavBytes - 44).coerceAtLeast(0)) / 32_000.0
+
     companion object {
         private const val BASE_URL = "https://api.groq.com"
         private const val FORMAT_MODEL = "llama-3.1-8b-instant"
@@ -176,3 +212,10 @@ class GroqClient {
         private val WAV_MEDIA = "audio/wav".toMediaType()
     }
 }
+
+data class GroqFormatOutcome(
+    val text: String,
+    val promptTokens: Long = 0L,
+    val completionTokens: Long = 0L,
+    val totalTokens: Long = 0L,
+)

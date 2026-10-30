@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-class FlowScribeApp : Application() {
+class JoynixScribeApp : Application() {
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -27,7 +27,6 @@ class FlowScribeApp : Application() {
 
     companion object {
         @Volatile
-        lateinit var instance: FlowScribeApp
-            private set
+        lateinit var instance: JoynixScribeApp
     }
 }

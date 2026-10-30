@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
@@ -145,6 +146,10 @@ fun KeysScreen(
         }
 
         item {
+            CloudflareGuideCard()
+        }
+
+        item {
             SectionHeader(title = "Comment ça marche")
             Spacer(Modifier.height(2.dp))
             FlowCard {
@@ -155,13 +160,19 @@ fun KeysScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Chez Groq, les limites (20 requêtes/min, 7 200 s d'audio/heure) sont partagées au niveau du compte : plusieurs clés du même compte ne contournent pas le quota.",
+                    "Groq : 20 requêtes/min, 2 000 requêtes/jour, 7 200 s d'audio/heure et 28 800 s/jour sur le free tier. Ces limites sont partagées par le compte : plusieurs clés du même compte ne les contournent pas.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "FlowScribe ne fait qu'un appel par dictée par défaut. Le mode « hedged » (deux appels en parallèle) est désactivé pour maîtriser la consommation.",
+                    "Cloudflare Workers AI : 10 000 neurons gratuits par jour et par compte. Une minute de whisper-turbo coûte environ 0,0005 $ (≈ 1,4 neuron pour 2 s). Le quota est aussi partagé par le compte.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "JoynixScribe ne fait qu'un appel par dictée par défaut. Le mode « repli anticipé » (deux appels en parallèle) est désactivé pour maîtriser la consommation. Un plafond quotidien par clé est réglable dans Réglages.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -217,6 +228,7 @@ private fun ProviderCard(
     val accent = when (provider) {
         Provider.GEMINI -> MaterialTheme.colorScheme.primary
         Provider.GROQ -> MaterialTheme.colorScheme.tertiary
+        Provider.CLOUDFLARE -> MaterialTheme.colorScheme.secondary
     }
     FlowCard(contentPadding = 16) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -228,7 +240,11 @@ private fun ProviderCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (provider == Provider.GEMINI) Icons.Rounded.AutoAwesome else Icons.Rounded.Bolt,
+                    when (provider) {
+                        Provider.GEMINI -> Icons.Rounded.AutoAwesome
+                        Provider.GROQ -> Icons.Rounded.Bolt
+                        Provider.CLOUDFLARE -> Icons.Rounded.Cloud
+                    },
                     null,
                     tint = accent,
                     modifier = Modifier.size(20.dp),
@@ -241,6 +257,7 @@ private fun ProviderCard(
                     when (provider) {
                         Provider.GEMINI -> "gemini-3.5-flash-lite · économique et rapide"
                         Provider.GROQ -> "whisper-large-v3-turbo · 0,04 $/heure"
+                        Provider.CLOUDFLARE -> "whisper-large-v3-turbo · 10 000 neurons/jour offerts"
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -306,8 +323,18 @@ private fun ProviderCard(
         val usable = keys.count { it.enabled && !it.isCoolingDown }
         if (keys.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
+            val tokens = keys.sumOf { it.totalTokens }
+            val today = keys.sumOf { it.requestsToday }
+            val audio = keys.sumOf { it.totalAudioSeconds }
+            val neurons = keys.sumOf { it.totalNeurons }
             Text(
-                "$usable clé${if (usable > 1) "s" else ""} prête${if (usable > 1) "s" else ""} à répondre",
+                buildString {
+                    append("$usable clé${if (usable > 1) "s" else ""} prête${if (usable > 1) "s" else ""} à répondre")
+                    append(" · $today requête${if (today > 1) "s" else ""} aujourd'hui")
+                    if (tokens > 0) append(" · $tokens tokens")
+                    if (audio > 0) append(" · ").append(String.format(java.util.Locale.FRANCE, "%.0f s audio", audio))
+                    if (neurons > 0) append(" · ").append(String.format(java.util.Locale.FRANCE, "%.1f neurons", neurons))
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -346,6 +373,37 @@ private fun KeyRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (entry.hasUsage) {
+                    Text(
+                        buildString {
+                            append("${entry.requestsToday} req aujourd'hui")
+                            if (entry.tokensToday > 0) append(" · ${entry.tokensToday} tokens")
+                            else if (entry.totalTokens > 0) append(" · ${entry.totalTokens} tokens")
+                            if (entry.audioSecondsToday > 0.0) {
+                                append(" · ").append(
+                                    String.format(
+                                        java.util.Locale.FRANCE,
+                                        "%.1f s audio",
+                                        entry.audioSecondsToday,
+                                    ),
+                                )
+                            }
+                            if (entry.neuronsToday > 0.0) {
+                                append(" · ").append(
+                                    String.format(
+                                        java.util.Locale.FRANCE,
+                                        "%.2f neurons",
+                                        entry.neuronsToday,
+                                    ),
+                                )
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             IconButton(onClick = onTest, enabled = !(probe?.running ?: false)) {
                 if (probe?.running == true) {
@@ -418,6 +476,92 @@ private fun KeyRow(
 }
 
 @Composable
+private fun CloudflareGuideCard() {
+    var expanded by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    FlowCard(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Cloud,
+                    null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Configurer Cloudflare Workers AI", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Gratuit : 10 000 neurons par jour. Aucune carte bancaire.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = { expanded = !expanded }) {
+                Text(if (expanded) "Masquer" else "Voir")
+            }
+        }
+        if (expanded) {
+            Spacer(Modifier.height(10.dp))
+            GuideStep("1", "Crée un compte sur dash.cloudflare.com, puis ouvre « Workers AI » dans le menu AI.")
+            GuideStep("2", "Clique sur « Get Account ID » : garde l'identifiant à 32 caractères, il n'est pas secret.")
+            GuideStep("3", "Crée un token API avec la permission « Workers AI : Read/Edit » (ou « Account / Workers AI / Edit »).")
+            GuideStep("4", "Dans JoynixScribe → Clés → Cloudflare, colle `accountId|token` (une barre verticale entre les deux).")
+            GuideStep("5", "Clique sur la fiole pour tester. Le test lit le catalogue de modèles : aucun crédit audio consommé.")
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Le token reste chiffré sur le téléphone. Ne le colle jamais dans un dépôt Git, une capture ou un message public.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = {
+                    uriHandler.openUri("https://developers.cloudflare.com/workers-ai/get-started/rest-api/")
+                },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+            ) {
+                Text("Ouvrir la documentation Cloudflare →")
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideStep(number: String, text: String) {
+    Row(
+        Modifier.padding(vertical = 3.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                number,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun AddKeyDialog(
     provider: Provider,
     existing: Int,
@@ -440,10 +584,13 @@ private fun AddKeyDialog(
                     .fillMaxWidth(),
             ) {
                 Text(
-                    if (provider == Provider.GEMINI) {
-                        "Crée une clé dans Google AI Studio. Les modèles Flash Lite sont les plus économiques."
-                    } else {
-                        "Crée une clé dans la console Groq. Whisper turbo coûte 0,04 $ par heure d'audio."
+                    when (provider) {
+                        Provider.GEMINI ->
+                            "Crée une clé dans Google AI Studio. Les modèles Flash Lite sont les plus économiques."
+                        Provider.GROQ ->
+                            "Crée une clé dans la console Groq. Whisper turbo coûte 0,04 $ par heure d'audio."
+                        Provider.CLOUDFLARE ->
+                            "Colle `accountId|token`. Le compte Cloudflare est gratuit : 10 000 neurons par jour, whisper-turbo inclus."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -471,7 +618,7 @@ private fun AddKeyDialog(
                         secret = it.trim()
                         error = null
                     },
-                    label = { Text("Clé API") },
+                    label = { Text(if (provider == Provider.CLOUDFLARE) "accountId|token" else "Clé API") },
                     placeholder = { Text(provider.keyHint) },
                     singleLine = true,
                     visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -502,7 +649,8 @@ private fun AddKeyDialog(
                     val message = onAdd(label, secret)
                     if (message != null) error = message
                 },
-                enabled = secret.length >= 8,
+                enabled = secret.length >= 8 &&
+                    (provider != Provider.CLOUDFLARE || secret.contains('|')),
             ) { Text("Ajouter") }
         },
         dismissButton = {

@@ -220,7 +220,7 @@ private fun BrandRow() {
         Spacer(Modifier.width(11.dp))
         Column {
             Text(
-                "FlowScribe",
+                "JoynixScribe",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -520,7 +520,7 @@ private fun KeyStep(
     )
     Spacer(Modifier.height(10.dp))
     Text(
-        "FlowScribe utilise ta propre clé Gemini. Elle est stockée chiffrée sur cet appareil et n'est jamais partagée.",
+        "JoynixScribe utilise ta propre clé Gemini, Groq ou Cloudflare. Elle est stockée chiffrée sur cet appareil et n'est jamais partagée.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

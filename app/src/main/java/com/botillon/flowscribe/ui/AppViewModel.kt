@@ -5,10 +5,13 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.botillon.flowscribe.FlowScribeApp
+import com.botillon.flowscribe.JoynixScribeApp
 import com.botillon.flowscribe.Permissions
 import com.botillon.flowscribe.data.ApiKeyEntry
 import com.botillon.flowscribe.data.AppSettings
+import com.botillon.flowscribe.data.BubbleAccent
+import com.botillon.flowscribe.data.BubbleGesture
+import com.botillon.flowscribe.data.BubbleIcon
 import com.botillon.flowscribe.data.DictionaryEntry
 import com.botillon.flowscribe.data.HistoryEntry
 import com.botillon.flowscribe.data.InsertMode
@@ -52,7 +55,7 @@ data class UiMessage(val id: Long = System.nanoTime(), val text: String)
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val app = application as FlowScribeApp
+    private val app = application as JoynixScribeApp
     private val store = app.settingsStore
     private val keyStore = app.keyStore
     private val engine = app.engine
@@ -192,12 +195,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectPrompt(id: String) = launchStore { setActivePrompt(id) }
 
-    fun createPrompt(name: String, description: String, instructions: String) {
+    fun createPrompt(
+        name: String,
+        description: String,
+        instructions: String,
+        appPackages: List<String> = emptyList(),
+    ) {
         val prompt = PromptPreset(
             id = UUID.randomUUID().toString(),
             name = name.trim(),
             description = description.trim(),
             instructions = instructions.trim(),
+            appPackages = appPackages,
         )
         launchStore { addPrompt(prompt) }
         notify("Style « ${prompt.name} » créé.")
@@ -264,6 +273,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setHedgeDelay(ms: Long) = launchStore { setHedgeDelay(ms) }
     fun setGeminiModel(value: String) = launchStore { setGeminiModel(value) }
     fun setGroqModel(value: String) = launchStore { setGroqModel(value) }
+    fun setCloudflareModel(value: String) = launchStore { setCloudflareModel(value) }
     fun setLanguage(value: String) = launchStore { setLanguage(value) }
     fun setPunctuation(value: Boolean) = launchStore { setPunctuation(value) }
     fun setSpokenCommands(value: Boolean) = launchStore { setSpokenCommands(value) }
@@ -276,10 +286,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setMaxDuration(sec: Int) = launchStore { setMaxDuration(sec) }
     fun setBubbleSize(dp: Int) = launchStore { setBubbleSize(dp) }
     fun setBubbleOpacity(value: Float) = launchStore { setBubbleOpacity(value) }
+    fun setBubbleAccent(value: BubbleAccent) = launchStore { setBubbleAccent(value) }
+    fun setBubbleIcon(value: BubbleIcon) = launchStore { setBubbleIcon(value) }
+    fun setBubbleGesture(value: BubbleGesture) = launchStore { setBubbleGesture(value) }
     fun setHaptics(value: Boolean) = launchStore { setHaptics(value) }
     fun setTheme(value: ThemeMode) = launchStore { setTheme(value) }
     fun setDynamicColor(value: Boolean) = launchStore { setDynamicColor(value) }
     fun setGroqFormatting(value: Boolean) = launchStore { setGroqFormatting(value) }
+    fun setSendAppContext(value: Boolean) = launchStore { setSendAppContext(value) }
+    fun setAppAwarePrompts(value: Boolean) = launchStore { setAppAwarePrompts(value) }
+    fun setDailyKeyRequestLimit(value: Int) = launchStore { setDailyKeyRequestLimit(value) }
 
     fun completeOnboarding() = launchStore { setOnboardingDone(true) }
 

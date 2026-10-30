@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -7,9 +8,28 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-val keystorePropsFile = rootProject.file("signing/keystore.properties")
+val keystorePropsFile = sequenceOf(
+    rootProject.file("keystore.properties"),
+    rootProject.file("signing/keystore.properties"),
+).firstOrNull { it.exists() }
 val keystoreProps = Properties().apply {
-    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+    if (keystorePropsFile != null) keystorePropsFile.inputStream().use { load(it) }
+}
+val keystoreStoreFile = System.getenv("JOYNIXSCRIBE_STORE_FILE")
+    ?: keystoreProps.getProperty("storeFile")
+val keystoreStorePassword = System.getenv("JOYNIXSCRIBE_STORE_PASSWORD")
+    ?: keystoreProps.getProperty("storePassword")
+val keystoreKeyAlias = System.getenv("JOYNIXSCRIBE_KEY_ALIAS")
+    ?: keystoreProps.getProperty("keyAlias")
+val keystoreKeyPassword = System.getenv("JOYNIXSCRIBE_KEY_PASSWORD")
+    ?: keystoreProps.getProperty("keyPassword")
+val hasSigning = !keystoreStoreFile.isNullOrBlank()
+
+fun resolveKeystore(path: String): File {
+    val file = File(path)
+    if (file.isAbsolute) return file
+    // Chemins relatifs interprétés depuis la racine du dépôt, comme avant.
+    return rootProject.file(path)
 }
 
 android {
@@ -18,20 +38,20 @@ android {
 
     defaultConfig {
         applicationId = "com.botillon.flowscribe"
-        minSdk = 35
+        minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.0.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
     signingConfigs {
         create("release") {
-            if (keystorePropsFile.exists()) {
-                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
+            if (hasSigning) {
+                storeFile = resolveKeystore(keystoreStoreFile!!)
+                storePassword = keystoreStorePassword
+                keyAlias = keystoreKeyAlias
+                keyPassword = keystoreKeyPassword
             }
         }
     }
@@ -41,7 +61,7 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             isDebuggable = false
-            signingConfig = if (keystorePropsFile.exists()) {
+            signingConfig = if (hasSigning) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

@@ -35,7 +35,23 @@ enum class Provider(
         docsUrl = "https://console.groq.com/keys",
         defaultModel = "whisper-large-v3-turbo",
         models = listOf("whisper-large-v3-turbo", "whisper-large-v3"),
+    ),
+    CLOUDFLARE(
+        id = "cloudflare",
+        label = "Cloudflare Workers AI",
+        shortLabel = "Cloudflare",
+        keyHint = "accountId|token",
+        docsUrl = "https://developers.cloudflare.com/workers-ai/get-started/rest-api/",
+        defaultModel = "@cf/openai/whisper-large-v3-turbo",
+        models = listOf(
+            "@cf/openai/whisper-large-v3-turbo",
+            "@cf/openai/whisper",
+            "@cf/deepgram/nova-3",
+            "@cf/xai/grok-stt",
+        ),
     );
+
+    val isSpeechToText: Boolean get() = this != GEMINI
 
     companion object {
         fun fromId(id: String?): Provider = entries.firstOrNull { it.id == id } ?: GEMINI
@@ -65,6 +81,17 @@ data class ApiKeyEntry(
     val lastError: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val lastUsedAt: Long = 0L,
+    // Compteurs cumulés, persistés localement uniquement.
+    val requests: Int = 0,
+    val totalTokens: Long = 0L,
+    val totalAudioSeconds: Double = 0.0,
+    val totalNeurons: Double = 0.0,
+    // Compteurs du jour, remis à zéro au changement de date locale (epoch day).
+    val usageDay: Long = 0L,
+    val requestsToday: Int = 0,
+    val tokensToday: Long = 0L,
+    val audioSecondsToday: Double = 0.0,
+    val neuronsToday: Double = 0.0,
 ) {
     val isCoolingDown: Boolean get() = cooldownUntil > System.currentTimeMillis()
     val masked: String
@@ -72,6 +99,40 @@ data class ApiKeyEntry(
             secret.length <= 8 -> "••••••••"
             else -> secret.take(4) + "…" + secret.takeLast(4)
         }
+    val hasUsage: Boolean get() = requests > 0
+
+    /** Aucun compteur ne doit « sauter » un jour sans requête. */
+    fun countersForToday(): ApiKeyEntry {
+        val today = epochDay()
+        return if (usageDay == today) this else copy(
+            usageDay = today,
+            requestsToday = 0,
+            tokensToday = 0L,
+            audioSecondsToday = 0.0,
+            neuronsToday = 0.0,
+        )
+    }
+
+    fun record(tokens: Long, audioSeconds: Double, neurons: Double): ApiKeyEntry {
+        val today = epochDay()
+        val sameDay = usageDay == today
+        return copy(
+            requests = requests + 1,
+            totalTokens = totalTokens + tokens.coerceAtLeast(0L),
+            totalAudioSeconds = totalAudioSeconds + audioSeconds.coerceAtLeast(0.0),
+            totalNeurons = totalNeurons + neurons.coerceAtLeast(0.0),
+            lastUsedAt = System.currentTimeMillis(),
+            usageDay = today,
+            requestsToday = (if (sameDay) requestsToday else 0) + 1,
+            tokensToday = (if (sameDay) tokensToday else 0L) + tokens.coerceAtLeast(0L),
+            audioSecondsToday = (if (sameDay) audioSecondsToday else 0.0) + audioSeconds.coerceAtLeast(0.0),
+            neuronsToday = (if (sameDay) neuronsToday else 0.0) + neurons.coerceAtLeast(0.0),
+        )
+    }
+
+    companion object {
+        fun epochDay(): Long = System.currentTimeMillis() / 86_400_000L
+    }
 }
 
 @Serializable
@@ -81,7 +142,35 @@ data class PromptPreset(
     val description: String = "",
     val instructions: String,
     val builtIn: Boolean = false,
-)
+    /** Packages Android auxquels ce style s'applique automatiquement. */
+    val appPackages: List<String> = emptyList(),
+) {
+    fun matchesPackage(pkg: String?): Boolean {
+        if (pkg.isNullOrBlank()) return false
+        return appPackages.any { it.trim().equals(pkg, ignoreCase = true) }
+    }
+}
+
+enum class BubbleAccent(val label: String, val base: Long, val deep: Long, val glow: Long) {
+    VIOLET("Violet", 0xFF9E86FF, 0xFF4B2FBF, 0xFF7C5CFF),
+    MINT("Menthe", 0xFF7DE2D1, 0xFF0E7C6B, 0xFF2ED3B7),
+    CORAL("Corail", 0xFFFFA78F, 0xFFC9402B, 0xFFFF6B57),
+    AZURE("Azur", 0xFF8EC5FF, 0xFF1E5FB0, 0xFF3D9BFF),
+    SUNSET("Coucher", 0xFFFFC27A, 0xFFB3561E, 0xFFFF8A3D),
+    GRAPHITE("Graphite", 0xFFC6C2D6, 0xFF3A3848, 0xFF8B86A3),
+}
+
+enum class BubbleIcon(val label: String) {
+    MIC("Micro"),
+    SPARK("Étincelle"),
+    WAVE("Onde"),
+    DOT("Point"),
+}
+
+enum class BubbleGesture(val label: String, val description: String) {
+    TAP("Tap", "Un tap pour démarrer, un tap pour arrêter"),
+    HOLD("Maintenir", "Maintiens la bulle pour parler, relâche pour envoyer"),
+}
 
 @Serializable
 data class DictionaryEntry(
@@ -112,6 +201,7 @@ data class AppSettings(
     val hedgeDelayMs: Long = 650L,
     val geminiModel: String = Provider.GEMINI.defaultModel,
     val groqModel: String = Provider.GROQ.defaultModel,
+    val cloudflareModel: String = Provider.CLOUDFLARE.defaultModel,
     val language: String = "auto",
     val activePromptId: String = PromptDefaults.CLEAN_ID,
     val punctuation: Boolean = true,
@@ -125,10 +215,19 @@ data class AppSettings(
     val maxDurationSec: Int = 90,
     val bubbleSizeDp: Int = 60,
     val bubbleOpacity: Float = 1f,
+    val bubbleAccent: BubbleAccent = BubbleAccent.VIOLET,
+    val bubbleIcon: BubbleIcon = BubbleIcon.MIC,
+    val bubbleGesture: BubbleGesture = BubbleGesture.TAP,
     val haptics: Boolean = true,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val groqFormatting: Boolean = true,
+    /** Envoie le nom de l'app et du package dans les consignes. */
+    val sendAppContext: Boolean = true,
+    /** Choisit automatiquement un style dont appPackages correspond à l'app active. */
+    val appAwarePrompts: Boolean = true,
+    /** 0 = pas de plafond. Sinon, une clé est ignorée après N requêtes dans la journée. */
+    val dailyKeyRequestLimit: Int = 0,
     val onboardingDone: Boolean = false,
 )
 

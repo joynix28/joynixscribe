@@ -36,18 +36,30 @@ class ApiKeyStore(context: Context) {
     }
 
     fun keys(provider: Provider): List<ApiKeyEntry> = synchronized(lock) {
-        read(provider)
+        read(provider).map { it.countersForToday() }
     }
 
     fun count(provider: Provider): Int = keys(provider).size
 
-    fun usableKeys(provider: Provider): List<ApiKeyEntry> = keys(provider)
-        .filter { it.enabled && !it.isCoolingDown && it.secret.isNotBlank() }
+    fun usableKeys(provider: Provider, dailyLimit: Int = 0): List<ApiKeyEntry> = keys(provider)
+        .filter {
+            it.enabled &&
+                !it.isCoolingDown &&
+                it.secret.isNotBlank() &&
+                (dailyLimit <= 0 || it.requestsToday < dailyLimit)
+        }
         .sortedBy { it.lastUsedAt }
 
     fun add(provider: Provider, label: String, secret: String): Result<ApiKeyEntry> = synchronized(lock) {
         val cleaned = secret.trim()
         if (cleaned.length < 8) return Result.failure(IllegalArgumentException("Clé trop courte"))
+        if (provider == Provider.CLOUDFLARE &&
+            (!cleaned.contains('|') || cleaned.substringBefore('|').isBlank())
+        ) {
+            return Result.failure(
+                IllegalArgumentException("Format Cloudflare attendu : accountId|token"),
+            )
+        }
         val current = read(provider)
         if (current.size >= MAX_KEYS) return Result.failure(IllegalStateException("Maximum $MAX_KEYS clés pour ${provider.label}"))
         if (current.any { it.secret == cleaned }) return Result.failure(IllegalStateException("Cette clé existe déjà"))
@@ -68,6 +80,21 @@ class ApiKeyStore(context: Context) {
 
     fun markSuccess(provider: Provider, id: String) = update(provider, id) {
         it.copy(cooldownUntil = 0L, failCount = 0, lastError = null, lastUsedAt = System.currentTimeMillis())
+    }
+
+    /**
+     * Enregistre la consommation réelle d'une requête réussie.
+     * Les tokens peuvent être 0 pour un modèle audio (Groq / Cloudflare) :
+     * on garde alors la durée audio et/ou les neurons comme unité.
+     */
+    fun recordUsage(
+        provider: Provider,
+        id: String,
+        tokens: Long = 0L,
+        audioSeconds: Double = 0.0,
+        neurons: Double = 0.0,
+    ) = update(provider, id) {
+        it.record(tokens = tokens, audioSeconds = audioSeconds, neurons = neurons)
     }
 
     fun markFailure(provider: Provider, id: String, cooldownMs: Long, error: String?) = update(provider, id) {

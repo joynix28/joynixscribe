@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.util.Log
@@ -52,7 +54,10 @@ class DictationAccessibilityService : AccessibilityService() {
         val node = findFocusedEditable() ?: return InsertionResult.NoField
         if (isSecure(node)) return InsertionResult.SecureField
 
-        val existing = node.text?.toString().orEmpty()
+        // Discord, Google et beaucoup de champs Compose exposent le placeholder
+        // (« Envoyer un message à User », « Recherche Google ») dans text/hintText.
+        // Le prendre pour du contenu existant collait le texte après le placeholder.
+        val existing = readFieldText(node)
         val selectionStart = node.textSelectionStart
         val selectionEnd = node.textSelectionEnd
         val start = if (selectionStart in 0..existing.length) selectionStart else existing.length
@@ -80,6 +85,7 @@ class DictationAccessibilityService : AccessibilityService() {
     }
 
     private fun setText(node: AccessibilityNodeInfo, newText: String, cursor: Int): Boolean {
+        runCatching { node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
         }
@@ -87,8 +93,8 @@ class DictationAccessibilityService : AccessibilityService() {
         if (!applied) return false
 
         runCatching { node.refresh() }
-        val current = node.text?.toString()
-        if (current != null && current != newText) return false
+        val current = readFieldText(node)
+        if (current != newText) return false
 
         val selection = Bundle().apply {
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cursor)
@@ -107,7 +113,7 @@ class DictationAccessibilityService : AccessibilityService() {
             } else null
         }.getOrNull()
 
-        clipboard.setPrimaryClip(ClipData.newPlainText("FlowScribe", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("JoynixScribe", text))
         runCatching { node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }
         var pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
         if (!pasted) {
@@ -139,6 +145,49 @@ class DictationAccessibilityService : AccessibilityService() {
             variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
             variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
             variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+    }
+
+    /**
+     * Texte réellement saisi dans le champ. Un placeholder n'est pas du contenu :
+     * on le neutralise via hintText, les extras Compose et, en dernier recours,
+     * contentDescription quand le champ est focalisé et vide.
+     */
+    private fun readFieldText(node: AccessibilityNodeInfo): String {
+        val raw = node.text?.toString().orEmpty()
+        if (raw.isEmpty()) return ""
+        val hint = hintOf(node)
+        if (hint != null && raw.trim().equals(hint, ignoreCase = true)) return ""
+        val description = node.contentDescription?.toString()?.trim()
+        if (!description.isNullOrEmpty() &&
+            raw.trim().equals(description, ignoreCase = true) &&
+            node.isFocused &&
+            (node.textSelectionStart <= 0 && node.textSelectionEnd <= 0)
+        ) {
+            return ""
+        }
+        return raw
+    }
+
+    private fun hintOf(node: AccessibilityNodeInfo): String? {
+        val hint = node.hintText?.toString()?.trim()
+        if (!hint.isNullOrEmpty()) return hint
+        return runCatching {
+            node.extras?.getCharSequence("AccessibilityNodeInfo.hint")?.toString()?.trim()
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Nom lisible + package de l'application réellement au premier plan. */
+    fun currentAppContext(): Pair<String, String>? {
+        val pkg = runCatching { rootInActiveWindow?.packageName?.toString() }.getOrNull()
+            ?.takeIf { it.isNotBlank() && it != packageName }
+            ?: lastPackage?.takeIf { it.isNotBlank() && it != packageName }
+            ?: return null
+        val label = runCatching {
+            @Suppress("DEPRECATION")
+            val info = packageManager.getApplicationInfo(pkg, 0)
+            packageManager.getApplicationLabel(info).toString()
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: pkg
+        return label to pkg
     }
 
     private fun findFocusedEditable(): AccessibilityNodeInfo? {

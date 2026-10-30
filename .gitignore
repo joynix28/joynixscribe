@@ -14,5 +14,9 @@ captures/
 *.aab
 *.hprof
 
-# Le keystore et ses mots de passe sont volontairement versionnés :
-# le dépôt est privé et les mises à jour doivent conserver la signature.
+# Secrets et artefacts de signature : ne jamais committer
+keystore.properties
+signing/
+*.jks
+*.keystore
+*.apk

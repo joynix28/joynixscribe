@@ -19,7 +19,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
-import com.botillon.flowscribe.FlowScribeApp
+import com.botillon.flowscribe.JoynixScribeApp
 import com.botillon.flowscribe.MainActivity
 import com.botillon.flowscribe.Permissions
 import com.botillon.flowscribe.ai.EngineInput
@@ -28,6 +28,7 @@ import com.botillon.flowscribe.ai.TranscriptionEngine
 import com.botillon.flowscribe.audio.AudioRecorder
 import com.botillon.flowscribe.data.ApiKeyStore
 import com.botillon.flowscribe.data.AppSettings
+import com.botillon.flowscribe.data.BubbleGesture
 import com.botillon.flowscribe.data.DictionaryEntry
 import com.botillon.flowscribe.data.HistoryEntry
 import com.botillon.flowscribe.data.InsertMode
@@ -89,6 +90,9 @@ class FloatingBubbleService : Service() {
     private var savedX = -1
     private var savedY = -1
 
+    private var currentAppName = ""
+    private var currentAppPackage = ""
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -96,7 +100,7 @@ class FloatingBubbleService : Service() {
         setRunning(true)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        val app = application as FlowScribeApp
+        val app = application as JoynixScribeApp
         settingsStore = app.settingsStore
         keyStore = app.keyStore
         engine = app.engine
@@ -206,6 +210,18 @@ class FloatingBubbleService : Service() {
                 else -> Unit
             }
         },
+        onPressStart = {
+            if (settings.bubbleGesture == BubbleGesture.HOLD &&
+                _state.value.phase == BubblePhase.IDLE
+            ) {
+                startRecording()
+            }
+        },
+        onPressEnd = { released ->
+            if (settings.bubbleGesture == BubbleGesture.HOLD && recording) {
+                if (released) scope.launch { stopRecording() } else cancelDictation()
+            }
+        },
         onStop = { scope.launch { stopRecording() } },
         onCancel = { cancelDictation() },
         onDismiss = { dismiss() },
@@ -228,10 +244,13 @@ class FloatingBubbleService : Service() {
     private fun startRecording() {
         if (recording) return
         if (!Permissions.hasMicrophone(this)) {
-            showError("Autorise le micro dans FlowScribe pour dicter.")
+            showError("Autorise le micro dans JoynixScribe pour dicter.")
             return
         }
         dismissJob?.cancel()
+        val appContext = DictationAccessibilityService.instance?.currentAppContext()
+        currentAppName = appContext?.first.orEmpty()
+        currentAppPackage = appContext?.second.orEmpty()
         _state.update {
             it.copy(
                 phase = BubblePhase.RECORDING,
@@ -243,10 +262,18 @@ class FloatingBubbleService : Service() {
                 errorText = "",
                 insertionNote = "",
                 copied = false,
+                usageTokens = 0,
+                usageAudioSeconds = 0.0,
+                usageNeurons = 0.0,
+                appName = currentAppName,
+                appPackage = currentAppPackage,
+                promptName = "",
             )
         }
         amplitudes.clear()
-        expand()
+        // En mode « maintenir », la fenêtre reste une bulle : le panneau ne doit
+        // pas casser le geste avant le relâchement du doigt.
+        if (settings.bubbleGesture != BubbleGesture.HOLD) expand()
 
         val started = recorder.start(scope)
         if (!started) {
@@ -295,6 +322,8 @@ class FloatingBubbleService : Service() {
                                         prompts = prompts,
                                         dictionary = dictionary,
                                         preview = true,
+                                        appName = currentAppName,
+                                        appPackage = currentAppPackage,
                                     ),
                                 )
                             }.getOrNull()
@@ -318,6 +347,7 @@ class FloatingBubbleService : Service() {
         timerJob?.cancel()
         previewJob?.cancel()
         _state.update { it.copy(phase = BubblePhase.PROCESSING, partialText = "") }
+        if (settings.bubbleGesture == BubbleGesture.HOLD) expand()
         updateNotification("Transcription…", "Un seul appel, réponse rapide")
         haptic(18)
 
@@ -341,6 +371,8 @@ class FloatingBubbleService : Service() {
                 settings = settings,
                 prompts = prompts,
                 dictionary = dictionary,
+                appName = currentAppName,
+                appPackage = currentAppPackage,
             )
             when (val result = engine.transcribe(input)) {
                 is EngineResult.Success -> onTranscribed(result)
@@ -394,14 +426,20 @@ class FloatingBubbleService : Service() {
                 insertionNote = note,
                 copied = copied,
                 accessibilityConnected = DictationAccessibilityService.isConnected,
+                usageTokens = data.usage.totalTokens,
+                usageAudioSeconds = data.usage.audioSeconds,
+                usageNeurons = data.usage.neurons,
+                appName = data.appName.ifBlank { currentAppName },
+                appPackage = data.appPackage.ifBlank { currentAppPackage },
+                promptName = data.promptName,
             )
         }
         expand()
         haptic(if (copied) 10 else 22)
-        updateNotification("FlowScribe est prêt", "Dernière dictée : ${data.latencyMs / 1000.0} s")
+        updateNotification("JoynixScribe est prêt", "Dernière dictée : ${data.latencyMs / 1000.0} s")
         if (copied) Notifications.result(this, data.text, copied = true)
 
-        val app = application as FlowScribeApp
+        val app = application as JoynixScribeApp
         app.appScope.launch {
             runCatching {
                 settingsStore.addHistory(
@@ -410,7 +448,9 @@ class FloatingBubbleService : Service() {
                         provider = data.provider.id,
                         model = data.model,
                         latencyMs = data.latencyMs,
-                        appPackage = DictationAccessibilityService.lastPackage,
+                        appPackage = data.appPackage.ifBlank {
+                            DictationAccessibilityService.lastPackage
+                        },
                         injected = !copied,
                     ),
                 )
@@ -430,7 +470,7 @@ class FloatingBubbleService : Service() {
         }
         expand()
         haptic(30)
-        updateNotification("FlowScribe — erreur", message.take(120))
+        updateNotification("JoynixScribe — erreur", message.take(120))
         dismissJob?.cancel()
         dismissJob = scope.launch {
             delay(7_000L)
@@ -469,6 +509,12 @@ class FloatingBubbleService : Service() {
                 copied = false,
                 latencyMs = 0,
                 elapsedMs = 0,
+                usageTokens = 0,
+                usageAudioSeconds = 0.0,
+                usageNeurons = 0.0,
+                appName = "",
+                appPackage = "",
+                promptName = "",
             )
         }
         collapse()
@@ -493,7 +539,7 @@ class FloatingBubbleService : Service() {
 
     private fun copyToClipboard(text: String) = runCatching {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("FlowScribe", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("JoynixScribe", text))
     }
 
     private fun openApp() {

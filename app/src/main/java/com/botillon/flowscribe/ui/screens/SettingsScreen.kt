@@ -59,10 +59,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.botillon.flowscribe.BuildConfig
 import com.botillon.flowscribe.data.ApiKeyEntry
 import com.botillon.flowscribe.data.AppSettings
+import com.botillon.flowscribe.data.BubbleAccent
+import com.botillon.flowscribe.data.BubbleGesture
+import com.botillon.flowscribe.data.BubbleIcon
 import com.botillon.flowscribe.data.InsertMode
 import com.botillon.flowscribe.data.Provider
 import com.botillon.flowscribe.data.ThemeMode
@@ -91,11 +95,14 @@ fun SettingsScreen(
     onExport: () -> Unit,
     onClearHistory: () -> Unit,
     onOpenKeys: () -> Unit,
+    onOpenVendorSettings: () -> Unit,
 ) {
     var customModelFor by remember { mutableStateOf<Provider?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     val geminiUsable = keys[Provider.GEMINI].orEmpty().count { it.enabled && !it.isCoolingDown }
     val groqUsable = keys[Provider.GROQ].orEmpty().count { it.enabled && !it.isCoolingDown }
+    val cloudflareUsable = keys[Provider.CLOUDFLARE].orEmpty()
+        .count { it.enabled && !it.isCoolingDown }
     val ecoReady = !settings.livePreview &&
         !settings.hedgeEnabled &&
         settings.geminiModel == Provider.GEMINI.defaultModel
@@ -123,6 +130,7 @@ fun SettingsScreen(
                 ecoReady = ecoReady,
                 geminiUsable = geminiUsable,
                 groqUsable = groqUsable,
+                cloudflareUsable = cloudflareUsable,
                 onApply = { vm.applyEcoPreset() },
             )
         }
@@ -154,11 +162,17 @@ fun SettingsScreen(
                     onSelect = { vm.setGroqModel(it) },
                     onCustom = { customModelFor = Provider.GROQ },
                 )
+                ModelDropdown(
+                    provider = Provider.CLOUDFLARE,
+                    current = settings.cloudflareModel,
+                    onSelect = { vm.setCloudflareModel(it) },
+                    onCustom = { customModelFor = Provider.CLOUDFLARE },
+                )
                 DividerLine()
                 SwitchRow(
                     icon = Icons.Rounded.AutoAwesome,
-                    title = "Reformatage Groq",
-                    subtitle = "Applique le style actif quand Groq transcrit (petit modèle, coût minime)",
+                    title = "Reformatage des styles",
+                    subtitle = "Applique le style actif quand Groq ou Cloudflare transcrit (petit modèle, coût minime)",
                     checked = settings.groqFormatting,
                     onChange = { vm.setGroqFormatting(it) },
                 )
@@ -320,6 +334,51 @@ fun SettingsScreen(
         }
 
         item {
+            SettingsSection(
+                title = "Application active",
+                subtitle = "Des styles qui s'adaptent au contexte",
+            ) {
+                SwitchRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = "Envoyer le contexte d'app",
+                    subtitle = "Transmet le nom et le package de l'app active (ex. Discord, Gmail) au modèle",
+                    checked = settings.sendAppContext,
+                    onChange = { vm.setSendAppContext(it) },
+                )
+                DividerLine()
+                SwitchRow(
+                    icon = Icons.Rounded.KeyboardVoice,
+                    title = "Styles automatiques par app",
+                    subtitle = "Utilise le style dont le package correspond à l'app active",
+                    checked = settings.appAwarePrompts,
+                    onChange = { vm.setAppAwarePrompts(it) },
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Exemple : un style « Discord » avec le package com.discord sera appliqué dès que tu dictes dans Discord. Configure les packages depuis l'onglet Styles.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                DividerLine()
+                FlowSlider(
+                    title = "Plafond quotidien par clé",
+                    valueLabel = if (settings.dailyKeyRequestLimit <= 0) "Illimité"
+                    else "${settings.dailyKeyRequestLimit} requêtes",
+                    value = settings.dailyKeyRequestLimit.toFloat(),
+                    valueRange = 0f..200f,
+                    steps = 0,
+                    onChange = { vm.setDailyKeyRequestLimit(it.roundToInt()) },
+                )
+                Text(
+                    "Garde-fou local : une clé qui atteint ce nombre de requêtes dans la journée est ignorée jusqu'au lendemain. 0 = pas de plafond. Les quotas réels restent ceux du compte chez le fournisseur.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        item {
             SettingsSection(title = "Bulle", subtitle = "Présence discrète, gestes sûrs") {
                 FlowSlider(
                     title = "Taille",
@@ -337,6 +396,51 @@ fun SettingsScreen(
                     steps = 8,
                     onChange = { vm.setBubbleOpacity(it) },
                 )
+                DividerLine()
+                Text(
+                    "Couleur de la bulle",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
+                )
+                ChoiceChips(
+                    options = BubbleAccent.entries,
+                    selected = settings.bubbleAccent,
+                    label = { it.label },
+                    onSelect = { vm.setBubbleAccent(it) },
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Icône au repos",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                ChoiceChips(
+                    options = BubbleIcon.entries,
+                    selected = settings.bubbleIcon,
+                    label = { it.label },
+                    onSelect = { vm.setBubbleIcon(it) },
+                )
+                Spacer(Modifier.height(10.dp))
+                DividerLine()
+                Text(
+                    "Geste de dictée",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
+                )
+                ChoiceChips(
+                    options = BubbleGesture.entries,
+                    selected = settings.bubbleGesture,
+                    label = { it.label },
+                    onSelect = { vm.setBubbleGesture(it) },
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    settings.bubbleGesture.description,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                DividerLine()
                 SwitchRow(
                     icon = Icons.Rounded.Tune,
                     title = "Retour haptique",
@@ -405,6 +509,31 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(10.dp))
+                DividerLine()
+                Text(
+                    "Compatibilité (${com.botillon.flowscribe.device.DeviceCompat.manufacturer()})",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+                )
+                val context = LocalContext.current
+                com.botillon.flowscribe.device.DeviceCompat.guidanceLines(context).forEach { line ->
+                    Text(
+                        "• $line",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpenVendorSettings) {
+                        Text("Ouvrir les réglages fabricant")
+                    }
+                    TextButton(onClick = { onPermission(PermKind.BATTERY) }) {
+                        Text("Batterie")
+                    }
+                }
             }
         }
 
@@ -478,9 +607,9 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("FlowScribe", style = MaterialTheme.typography.titleMedium)
+                        Text("JoynixScribe", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Version ${BuildConfig.VERSION_NAME} · usage personnel",
+                            "Version ${BuildConfig.VERSION_NAME} · open source",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -493,7 +622,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "FlowScribe enregistre uniquement entre le tap de départ et le tap d'arrêt. L'audio est envoyé à Gemini ou Groq pour transcription, puis oublié. Aucune analytics, aucun serveur intermédiaire.",
+                    "JoynixScribe enregistre uniquement entre le tap de départ et le tap d'arrêt. L'audio est envoyé au fournisseur choisi (Gemini, Groq ou Cloudflare) pour transcription, puis oublié. Aucune analytics, aucun serveur intermédiaire. Le contenu de l'écran n'est jamais lu ni transmis : seuls le nom et le package de l'app active peuvent l'être, et tu peux couper ça ci-dessus.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -502,7 +631,7 @@ fun SettingsScreen(
 
         item {
             Text(
-                "FlowScribe ne remplace pas le clavier : il insère le texte dans le champ actif via le service d'accessibilité. Certaines apps (banques, champs sécurisés) refusent l'insertion ; le texte est alors copié.",
+                "JoynixScribe ne remplace pas le clavier : il insère le texte dans le champ actif via le service d'accessibilité. Certaines apps (banques, champs sécurisés) refusent l'insertion ; le texte est alors copié.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -513,10 +642,18 @@ fun SettingsScreen(
     customModelFor?.let { provider ->
         CustomModelDialog(
             provider = provider,
-            current = if (provider == Provider.GEMINI) settings.geminiModel else settings.groqModel,
+            current = when (provider) {
+                Provider.GEMINI -> settings.geminiModel
+                Provider.GROQ -> settings.groqModel
+                Provider.CLOUDFLARE -> settings.cloudflareModel
+            },
             onDismiss = { customModelFor = null },
             onSave = {
-                if (provider == Provider.GEMINI) vm.setGeminiModel(it) else vm.setGroqModel(it)
+                when (provider) {
+                    Provider.GEMINI -> vm.setGeminiModel(it)
+                    Provider.GROQ -> vm.setGroqModel(it)
+                    Provider.CLOUDFLARE -> vm.setCloudflareModel(it)
+                }
                 customModelFor = null
             },
         )
@@ -548,6 +685,7 @@ private fun EcoCard(
     ecoReady: Boolean,
     geminiUsable: Int,
     groqUsable: Int,
+    cloudflareUsable: Int,
     onApply: () -> Unit,
 ) {
     Surface(
@@ -582,7 +720,7 @@ private fun EcoCard(
             EcoLine("Un seul appel IA par dictée (pas de hedged, pas d'aperçu).")
             EcoLine("Modèle économique par défaut : gemini-3.5-flash-lite.")
             EcoLine("Silence coupé, sortie plafonnée selon la durée réelle.")
-            EcoLine("$geminiUsable clé Gemini · $groqUsable clé Groq disponibles.")
+            EcoLine("$geminiUsable clé Gemini · $groqUsable clé Groq · $cloudflareUsable clé Cloudflare disponibles.")
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -636,12 +774,22 @@ private fun ModelDropdown(
     onCustom: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val icon = when (provider) {
+        Provider.GEMINI -> Icons.Rounded.AutoAwesome
+        Provider.GROQ -> Icons.Rounded.Bolt
+        Provider.CLOUDFLARE -> Icons.Rounded.Cloud
+    }
+    val tint = when (provider) {
+        Provider.GEMINI -> MaterialTheme.colorScheme.primary
+        Provider.GROQ -> MaterialTheme.colorScheme.tertiary
+        Provider.CLOUDFLARE -> MaterialTheme.colorScheme.secondary
+    }
     Box {
         SettingRow(
-            icon = if (provider == Provider.GEMINI) Icons.Rounded.AutoAwesome else Icons.Rounded.Bolt,
+            icon = icon,
             title = "Modèle ${provider.shortLabel}",
             subtitle = current,
-            tint = if (provider == Provider.GEMINI) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+            tint = tint,
             onClick = { expanded = true },
             trailing = {
                 Icon(
@@ -784,7 +932,13 @@ private fun CustomModelDialog(
                     onValueChange = { value = it.trim() },
                     label = { Text("Identifiant") },
                     placeholder = {
-                        Text(if (provider == Provider.GEMINI) "gemini-3.5-flash-lite" else "whisper-large-v3-turbo")
+                        Text(
+                            when (provider) {
+                                Provider.GEMINI -> "gemini-3.5-flash-lite"
+                                Provider.GROQ -> "whisper-large-v3-turbo"
+                                Provider.CLOUDFLARE -> "@cf/openai/whisper-large-v3-turbo"
+                            },
+                        )
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),

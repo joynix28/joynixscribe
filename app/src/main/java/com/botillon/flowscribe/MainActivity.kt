@@ -58,7 +58,7 @@ import com.botillon.flowscribe.ui.screens.KeysScreen
 import com.botillon.flowscribe.ui.screens.OnboardingScreen
 import com.botillon.flowscribe.ui.screens.PromptsScreen
 import com.botillon.flowscribe.ui.screens.SettingsScreen
-import com.botillon.flowscribe.ui.theme.FlowScribeTheme
+import com.botillon.flowscribe.ui.theme.JoynixScribeTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
             }
 
-            FlowScribeTheme(darkTheme = dark, dynamicColor = settings.dynamicColor) {
+            JoynixScribeTheme(darkTheme = dark, dynamicColor = settings.dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -245,8 +245,8 @@ class MainActivity : ComponentActivity() {
                             prompts = prompts,
                             activeId = settings.activePromptId,
                             onSelect = { vm.selectPrompt(it) },
-                            onCreate = { name, description, instructions ->
-                                vm.createPrompt(name, description, instructions)
+                            onCreate = { name, description, instructions, packages ->
+                                vm.createPrompt(name, description, instructions, packages)
                             },
                             onUpdate = { vm.updatePrompt(it) },
                             onDuplicate = { vm.duplicatePrompt(it) },
@@ -274,7 +274,7 @@ class MainActivity : ComponentActivity() {
                                 val json = vm.exportJson()
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "FlowScribe — configuration")
+                                    putExtra(Intent.EXTRA_SUBJECT, "JoynixScribe — configuration")
                                     putExtra(Intent.EXTRA_TEXT, json)
                                 }
                                 runCatching {
@@ -288,6 +288,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onClearHistory = { vm.clearHistory() },
                             onOpenKeys = { tab = Tab.KEYS },
+                            onOpenVendorSettings = {
+                                val intent = com.botillon.flowscribe.device.DeviceCompat.autostartIntent(context)
+                                    ?: com.botillon.flowscribe.device.DeviceCompat.autostartFallbackIntent(context)
+                                runCatching { context.startActivity(intent) }
+                            },
                         )
                     }
                 }
@@ -337,7 +342,7 @@ private fun Tab.icon(): ImageVector = when (this) {
 
 private fun copyText(context: Context, text: String) {
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-    clipboard.setPrimaryClip(ClipData.newPlainText("FlowScribe", text))
+    clipboard.setPrimaryClip(ClipData.newPlainText("JoynixScribe", text))
 }
 
 private fun openBattery(context: Context) {

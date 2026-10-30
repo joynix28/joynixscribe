@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,12 @@ data class Recording(
 class AudioRecorder {
 
     private val pcm = ByteArrayOutputStream(16_000 * 2 * 20)
+    // Anneau des N dernières secondes : évite de copier l'intégralité de la
+    // capture pour un aperçu live, ce qui coûtait O(n) à chaque cycle.
+    private val tailCapacity = 22 * 16_000 * 2
+    private val tail = ByteArray(tailCapacity)
+    private var tailHead = 0
+    private var tailSize = 0
     private val lock = Any()
 
     private var record: AudioRecord? = null
@@ -89,6 +96,7 @@ class AudioRecorder {
         val recorder = created ?: return false
 
         synchronized(lock) { pcm.reset() }
+        synchronized(lock) { tailSize = 0; tailHead = 0 }
         record = recorder
         this.scope = scope
         startedAt = System.currentTimeMillis()
@@ -111,9 +119,12 @@ class AudioRecorder {
                 val read = runCatching { recorder.read(buffer, 0, buffer.size) }.getOrDefault(0)
                 if (read <= 0) {
                     if (read < 0) break
+                    // Évite un busy-wait CPU si AudioRecord renvoie 0 de façon répétée.
+                    if (read == 0) delay(5)
                     continue
                 }
                 synchronized(lock) { pcm.write(buffer, 0, read) }
+                appendToTail(buffer, read)
 
                 val now = System.currentTimeMillis()
                 if (now - lastLevelAt >= 55L) {
@@ -139,12 +150,24 @@ class AudioRecorder {
      */
     fun snapshotWav(windowSeconds: Int = 9): ByteArray? {
         if (!capturing) return null
-        val copy = synchronized(lock) { pcm.toByteArray() }
+        val copy: ByteArray
+        synchronized(lock) {
+            if (tailSize == 0) return null
+            val wanted = (windowSeconds.coerceIn(4, 20) * 16_000 * 2).coerceAtMost(tailSize)
+            copy = ByteArray(wanted)
+            // tailHead pointe sur la prochaine écriture.
+            val start = (tailHead - wanted + tailCapacity) % tailCapacity
+            if (start + wanted <= tailCapacity) {
+                System.arraycopy(tail, start, copy, 0, wanted)
+            } else {
+                val first = tailCapacity - start
+                System.arraycopy(tail, start, copy, 0, first)
+                System.arraycopy(tail, 0, copy, first, wanted - first)
+            }
+        }
         if (copy.size < WavEncoder.SAMPLE_RATE / 2) return null
-        val maxBytes = windowSeconds.coerceIn(4, 20) * WavEncoder.SAMPLE_RATE * 2
-        val tail = if (copy.size > maxBytes) copy.copyOfRange(copy.size - maxBytes, copy.size) else copy
-        val evenSize = tail.size - (tail.size % 2)
-        val trimmed = WavEncoder.trimSilence(tail.copyOf(evenSize))
+        val evenSize = copy.size - (copy.size % 2)
+        val trimmed = WavEncoder.trimSilence(copy.copyOf(evenSize))
         return WavEncoder.encode(trimmed)
     }
 
@@ -159,7 +182,7 @@ class AudioRecorder {
         _level.value = 0f
 
         val copy = synchronized(lock) { pcm.toByteArray() }
-        synchronized(lock) { pcm.reset() }
+        synchronized(lock) { pcm.reset(); tailSize = 0; tailHead = 0 }
         val evenSize = copy.size - (copy.size % 2)
         if (evenSize < WavEncoder.SAMPLE_RATE / 4) return null
         val pcmAudio = copy.copyOf(evenSize)
@@ -181,13 +204,24 @@ class AudioRecorder {
         readJob?.cancel()
         readJob = null
         runCatching { recorder?.release() }
-        synchronized(lock) { pcm.reset() }
+        synchronized(lock) { pcm.reset(); tailSize = 0; tailHead = 0 }
         _level.value = 0f
     }
 
     val elapsedMs: Long
         get() = if (startedAt == 0L) 0L else System.currentTimeMillis() - startedAt
 
+    private fun appendToTail(buffer: ByteArray, read: Int) {
+        synchronized(lock) {
+            var i = 0
+            while (i < read) {
+                tail[tailHead] = buffer[i]
+                tailHead = (tailHead + 1) % tailCapacity
+                if (tailSize < tailCapacity) tailSize++
+                i++
+            }
+        }
+    }
     private fun rms(buffer: ByteArray, length: Int): Float {
         var sum = 0.0
         var count = 0

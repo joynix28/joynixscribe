@@ -6,9 +6,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -123,7 +125,21 @@ class GeminiClient {
                         latencyMs = System.currentTimeMillis() - started,
                     )
                 } else {
-                    ProviderOutcome.ok(Provider.GEMINI, model, text, System.currentTimeMillis() - started)
+                    val usage = root["usageMetadata"]?.jsonObject
+                    val prompt = usage?.get("promptTokenCount")?.jsonPrimitive?.longOrNull ?: 0L
+                    val completion = usage?.get("candidatesTokenCount")?.jsonPrimitive?.longOrNull ?: 0L
+                    val total = usage?.get("totalTokenCount")?.jsonPrimitive?.longOrNull
+                        ?: (prompt + completion)
+                    ProviderOutcome.ok(
+                        provider = Provider.GEMINI,
+                        model = model,
+                        text = text,
+                        latencyMs = System.currentTimeMillis() - started,
+                        promptTokens = prompt,
+                        completionTokens = completion,
+                        totalTokens = total,
+                        audioSeconds = audioSeconds(wav.size),
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -157,9 +173,12 @@ class GeminiClient {
      * On garde 4x la marge pour les prompts qui reformatent, sans laisser filer la facture.
      */
     private fun outputBudget(wavBytes: Int): Int {
-        val seconds = ((wavBytes - 44).coerceAtLeast(0)) / 32_000.0
+        val seconds = audioSeconds(wavBytes)
         return (seconds * 8 + 160).toInt().coerceIn(192, 2_048)
     }
+
+    private fun audioSeconds(wavBytes: Int): Double =
+        ((wavBytes - 44).coerceAtLeast(0)) / 32_000.0
 
     private fun parseError(body: String): String {
         return runCatching {
@@ -200,10 +219,34 @@ data class ProviderOutcome(
     val latencyMs: Long = 0,
     val retryAfterMs: Long = 0,
     val timedOut: Boolean = false,
+    val promptTokens: Long = 0L,
+    val completionTokens: Long = 0L,
+    val totalTokens: Long = 0L,
+    val audioSeconds: Double = 0.0,
+    val neurons: Double = 0.0,
 ) {
     companion object {
-        fun ok(provider: Provider, model: String, text: String, latencyMs: Long) = ProviderOutcome(
-            ok = true, provider = provider, model = model, text = text, latencyMs = latencyMs,
+        fun ok(
+            provider: Provider,
+            model: String,
+            text: String,
+            latencyMs: Long,
+            promptTokens: Long = 0L,
+            completionTokens: Long = 0L,
+            totalTokens: Long = 0L,
+            audioSeconds: Double = 0.0,
+            neurons: Double = 0.0,
+        ) = ProviderOutcome(
+            ok = true,
+            provider = provider,
+            model = model,
+            text = text,
+            latencyMs = latencyMs,
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            totalTokens = totalTokens,
+            audioSeconds = audioSeconds,
+            neurons = neurons,
         )
 
         fun failure(

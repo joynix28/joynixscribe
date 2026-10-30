@@ -61,7 +61,7 @@ fun PromptsScreen(
     prompts: List<PromptPreset>,
     activeId: String,
     onSelect: (String) -> Unit,
-    onCreate: (String, String, String) -> Unit,
+    onCreate: (String, String, String, List<String>) -> Unit,
     onUpdate: (PromptPreset) -> Unit,
     onDuplicate: (PromptPreset) -> Unit,
     onDelete: (String) -> Unit,
@@ -117,7 +117,7 @@ fun PromptsScreen(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Le style actif est envoyé comme consigne système à Gemini. Si Groq transcrit, un reformatage court est appliqué (désactivable dans Réglages).",
+                        "Le style actif est envoyé comme consigne système au modèle. Si Groq ou Cloudflare transcrit, un reformatage court est appliqué (désactivable dans Réglages).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -161,12 +161,12 @@ fun PromptsScreen(
         }
     }
 
-    if (creating) {
+                            if (creating) {
         PromptEditorDialog(
             prompt = null,
             onDismiss = { creating = false },
-            onSave = { name, description, instructions ->
-                onCreate(name, description, instructions)
+            onSave = { name, description, instructions, packages ->
+                onCreate(name, description, instructions, packages)
                 creating = false
             },
         )
@@ -176,12 +176,13 @@ fun PromptsScreen(
         PromptEditorDialog(
             prompt = prompt,
             onDismiss = { editor = null },
-            onSave = { name, description, instructions ->
+            onSave = { name, description, instructions, packages ->
                 onUpdate(
                     prompt.copy(
                         name = name,
                         description = description,
                         instructions = instructions,
+                        appPackages = packages,
                     ),
                 )
                 editor = null
@@ -282,6 +283,16 @@ private fun PromptCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (prompt.appPackages.isNotEmpty()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        prompt.appPackages.joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (active) {
                 Icon(
@@ -367,11 +378,14 @@ private fun PromptCard(
 private fun PromptEditorDialog(
     prompt: PromptPreset?,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, String, String, List<String>) -> Unit,
 ) {
     var name by remember { mutableStateOf(prompt?.name.orEmpty()) }
     var description by remember { mutableStateOf(prompt?.description.orEmpty()) }
     var instructions by remember { mutableStateOf(prompt?.instructions.orEmpty()) }
+    var packages by remember {
+        mutableStateOf(prompt?.appPackages?.joinToString(", ").orEmpty())
+    }
     val valid = name.isNotBlank() && instructions.isNotBlank()
 
     AlertDialog(
@@ -411,7 +425,28 @@ private fun PromptEditorDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
+                    "Variables disponibles : {{app}} (nom de l'app), {{package}}, {{lang}}, {{date}}.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
                     "Écris à l'impératif. Ces consignes ont priorité sur le style par défaut et s'appliquent à chaque dictée avec ce style.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = packages,
+                    onValueChange = { packages = it },
+                    label = { Text("Packages d'apps (optionnel)") },
+                    placeholder = { Text("com.discord, com.google.android.gm") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Si ces packages correspondent à l'app active, ce style est choisi automatiquement. Sépare-les par des virgules. Trouve le package dans Réglages → À propos d'une app, ou via une app comme App Info.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -427,7 +462,17 @@ private fun PromptEditorDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name.trim(), description.trim(), instructions.trim()) },
+                onClick = {
+                    onSave(
+                        name.trim(),
+                        description.trim(),
+                        instructions.trim(),
+                        packages.split(',', '\n')
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .distinct(),
+                    )
+                },
                 enabled = valid,
             ) { Text("Enregistrer") }
         },

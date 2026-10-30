@@ -246,7 +246,7 @@ fun HomeScreen(
 
         item {
             Text(
-                "Les clés et l'audio ne quittent l'appareil que pour rejoindre Gemini ou Groq. Rien d'autre n'est envoyé.",
+                "Les clés et l'audio ne quittent l'appareil que pour rejoindre Gemini, Groq ou Cloudflare. Rien d'autre n'est envoyé.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
@@ -311,7 +311,7 @@ private fun TopBar() {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "FlowScribe",
+                "JoynixScribe",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.2).sp,
@@ -323,7 +323,7 @@ private fun TopBar() {
             )
         }
         StatusPill(
-            text = "v1.0",
+            text = "v2.0",
             tint = MaterialTheme.colorScheme.secondary,
             icon = Icons.Rounded.Bolt,
         )
@@ -521,7 +521,7 @@ private fun MissingKeysCard(onOpenKeys: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("Aucune clé API", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Ajoute une clé Gemini ou Groq pour activer la dictée.",
+                    "Ajoute une clé Gemini, Groq ou Cloudflare pour activer la dictée.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

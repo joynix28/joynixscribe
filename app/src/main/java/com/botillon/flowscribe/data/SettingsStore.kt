@@ -40,6 +40,7 @@ class SettingsStore(private val context: Context) {
             hedgeDelayMs = (p[Keys.HEDGE_DELAY] ?: 650L).coerceIn(250L, 2000L),
             geminiModel = p[Keys.GEMINI_MODEL] ?: Provider.GEMINI.defaultModel,
             groqModel = p[Keys.GROQ_MODEL] ?: Provider.GROQ.defaultModel,
+            cloudflareModel = p[Keys.CLOUDFLARE_MODEL] ?: Provider.CLOUDFLARE.defaultModel,
             language = p[Keys.LANGUAGE] ?: "auto",
             activePromptId = p[Keys.ACTIVE_PROMPT] ?: PromptDefaults.CLEAN_ID,
             punctuation = p[Keys.PUNCTUATION] ?: true,
@@ -53,10 +54,22 @@ class SettingsStore(private val context: Context) {
             maxDurationSec = (p[Keys.MAX_DURATION] ?: 90).coerceIn(30, 600),
             bubbleSizeDp = (p[Keys.BUBBLE_SIZE] ?: 60).coerceIn(46, 80),
             bubbleOpacity = (p[Keys.BUBBLE_OPACITY] ?: 1f).coerceIn(0.55f, 1f),
+            bubbleAccent = runCatching {
+                BubbleAccent.valueOf(p[Keys.BUBBLE_ACCENT] ?: "VIOLET")
+            }.getOrDefault(BubbleAccent.VIOLET),
+            bubbleIcon = runCatching {
+                BubbleIcon.valueOf(p[Keys.BUBBLE_ICON] ?: "MIC")
+            }.getOrDefault(BubbleIcon.MIC),
+            bubbleGesture = runCatching {
+                BubbleGesture.valueOf(p[Keys.BUBBLE_GESTURE] ?: "TAP")
+            }.getOrDefault(BubbleGesture.TAP),
             haptics = p[Keys.HAPTICS] ?: true,
             theme = runCatching { ThemeMode.valueOf(p[Keys.THEME] ?: "SYSTEM") }.getOrDefault(ThemeMode.SYSTEM),
             dynamicColor = p[Keys.DYNAMIC_COLOR] ?: true,
             groqFormatting = p[Keys.GROQ_FORMATTING] ?: true,
+            sendAppContext = p[Keys.SEND_APP_CONTEXT] ?: true,
+            appAwarePrompts = p[Keys.APP_AWARE_PROMPTS] ?: true,
+            dailyKeyRequestLimit = (p[Keys.DAILY_KEY_LIMIT] ?: 0).coerceIn(0, 500),
             onboardingDone = p[Keys.ONBOARDING] ?: false,
         )
     }
@@ -99,6 +112,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setHedgeDelay(ms: Long) = edit { it[Keys.HEDGE_DELAY] = ms.coerceIn(250L, 2000L) }
     suspend fun setGeminiModel(value: String) = edit { it[Keys.GEMINI_MODEL] = value }
     suspend fun setGroqModel(value: String) = edit { it[Keys.GROQ_MODEL] = value }
+    suspend fun setCloudflareModel(value: String) = edit { it[Keys.CLOUDFLARE_MODEL] = value }
     suspend fun setLanguage(value: String) = edit { it[Keys.LANGUAGE] = value }
     suspend fun setActivePrompt(id: String) = edit { it[Keys.ACTIVE_PROMPT] = id }
     suspend fun setPunctuation(value: Boolean) = edit { it[Keys.PUNCTUATION] = value }
@@ -112,10 +126,16 @@ class SettingsStore(private val context: Context) {
     suspend fun setMaxDuration(sec: Int) = edit { it[Keys.MAX_DURATION] = sec.coerceIn(30, 600) }
     suspend fun setBubbleSize(dp: Int) = edit { it[Keys.BUBBLE_SIZE] = dp.coerceIn(46, 80) }
     suspend fun setBubbleOpacity(value: Float) = edit { it[Keys.BUBBLE_OPACITY] = value.coerceIn(0.55f, 1f) }
+    suspend fun setBubbleAccent(value: BubbleAccent) = edit { it[Keys.BUBBLE_ACCENT] = value.name }
+    suspend fun setBubbleIcon(value: BubbleIcon) = edit { it[Keys.BUBBLE_ICON] = value.name }
+    suspend fun setBubbleGesture(value: BubbleGesture) = edit { it[Keys.BUBBLE_GESTURE] = value.name }
     suspend fun setHaptics(value: Boolean) = edit { it[Keys.HAPTICS] = value }
     suspend fun setTheme(value: ThemeMode) = edit { it[Keys.THEME] = value.name }
     suspend fun setDynamicColor(value: Boolean) = edit { it[Keys.DYNAMIC_COLOR] = value }
     suspend fun setGroqFormatting(value: Boolean) = edit { it[Keys.GROQ_FORMATTING] = value }
+    suspend fun setSendAppContext(value: Boolean) = edit { it[Keys.SEND_APP_CONTEXT] = value }
+    suspend fun setAppAwarePrompts(value: Boolean) = edit { it[Keys.APP_AWARE_PROMPTS] = value }
+    suspend fun setDailyKeyRequestLimit(value: Int) = edit { it[Keys.DAILY_KEY_LIMIT] = value.coerceIn(0, 500) }
     suspend fun setOnboardingDone(value: Boolean) = edit { it[Keys.ONBOARDING] = value }
 
     suspend fun addPrompt(prompt: PromptPreset) = edit { p ->
@@ -165,7 +185,7 @@ class SettingsStore(private val context: Context) {
     fun exportConfig(settings: AppSettings, prompts: List<PromptPreset>, dictionary: List<DictionaryEntry>): String {
         val payload = buildString {
             appendLine("{")
-            appendLine("  \"app\": \"FlowScribe\",")
+            appendLine("  \"app\": \"JoynixScribe\",")
             appendLine("  \"version\": 1,")
             appendLine("  \"settings\": {")
             appendLine("    \"primary\": \"${settings.primary.id}\",")
@@ -175,7 +195,11 @@ class SettingsStore(private val context: Context) {
             appendLine("    \"hedgeDelayMs\": ${settings.hedgeDelayMs},")
             appendLine("    \"geminiModel\": \"${settings.geminiModel}\",")
             appendLine("    \"groqModel\": \"${settings.groqModel}\",")
+            appendLine("    \"cloudflareModel\": \"${settings.cloudflareModel}\",")
             appendLine("    \"language\": \"${settings.language}\",")
+            appendLine("    \"appAwarePrompts\": ${settings.appAwarePrompts},")
+            appendLine("    \"sendAppContext\": ${settings.sendAppContext},")
+            appendLine("    \"bubbleGesture\": \"${settings.bubbleGesture.name}\"," )
             appendLine("    \"punctuation\": ${settings.punctuation},")
             appendLine("    \"spokenCommands\": ${settings.spokenCommands},")
             appendLine("    \"frenchTypography\": ${settings.frenchTypography},")
@@ -211,6 +235,7 @@ class SettingsStore(private val context: Context) {
         val HEDGE_DELAY = longPreferencesKey("hedge_delay")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val GROQ_MODEL = stringPreferencesKey("groq_model")
+        val CLOUDFLARE_MODEL = stringPreferencesKey("cloudflare_model")
         val LANGUAGE = stringPreferencesKey("language")
         val ACTIVE_PROMPT = stringPreferencesKey("active_prompt")
         val PUNCTUATION = booleanPreferencesKey("punctuation")
@@ -224,10 +249,16 @@ class SettingsStore(private val context: Context) {
         val MAX_DURATION = intPreferencesKey("max_duration")
         val BUBBLE_SIZE = intPreferencesKey("bubble_size")
         val BUBBLE_OPACITY = floatPreferencesKey("bubble_opacity")
+        val BUBBLE_ACCENT = stringPreferencesKey("bubble_accent")
+        val BUBBLE_ICON = stringPreferencesKey("bubble_icon")
+        val BUBBLE_GESTURE = stringPreferencesKey("bubble_gesture")
         val HAPTICS = booleanPreferencesKey("haptics")
         val THEME = stringPreferencesKey("theme")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val GROQ_FORMATTING = booleanPreferencesKey("groq_formatting")
+        val SEND_APP_CONTEXT = booleanPreferencesKey("send_app_context")
+        val APP_AWARE_PROMPTS = booleanPreferencesKey("app_aware_prompts")
+        val DAILY_KEY_LIMIT = intPreferencesKey("daily_key_limit")
         val ONBOARDING = booleanPreferencesKey("onboarding_done")
         val PROMPTS = stringPreferencesKey("prompts_v1")
         val DICTIONARY = stringPreferencesKey("dictionary_v1")
