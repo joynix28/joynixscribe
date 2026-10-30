@@ -1,0 +1,19 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.cxx/
+*.iml
+.idea/
+.DS_Store
+
+# Journaux et artefacts temporaires
+*.log
+*.apk
+*.aab
+*.hprof
+
+# Le keystore et ses mots de passe sont volontairement versionnés :
+# le dépôt est privé et les mises à jour doivent conserver la signature.

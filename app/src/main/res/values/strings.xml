@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowScribe</string>
+    <string name="accessibility_label">FlowScribe — insertion de texte</string>
+    <string name="accessibility_description">Permet à FlowScribe d\'insérer la dictée dans le champ de texte de l\'application active, au curseur, sans remplacer votre clavier. Aucune lecture de contenu n\'est stockée.</string>
+    <string name="notification_channel_service">Bulle de dictée</string>
+    <string name="notification_channel_results">Transcriptions</string>
+    <string name="notification_service_title">FlowScribe est prêt</string>
+    <string name="notification_service_text">Appuyez sur la bulle pour dicter</string>
+    <string name="notification_stop">Arrêter</string>
+</resources>
