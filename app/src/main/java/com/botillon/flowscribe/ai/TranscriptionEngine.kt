@@ -24,6 +24,8 @@ data class EngineInput(
     val prompts: List<PromptPreset>,
     val dictionary: List<DictionaryEntry>,
     val preview: Boolean = false,
+    /** true pour un segment du mode streaming (pas pour l'aperçu live). */
+    val streamingSegment: Boolean = false,
     val appName: String = "",
     val appPackage: String = "",
 )
@@ -80,6 +82,7 @@ class TranscriptionEngine(
     private val gemini: GeminiClient = GeminiClient(),
     private val groq: GroqClient = GroqClient(),
     private val cloudflare: CloudflareClient = CloudflareClient(),
+    private val aperture: ApertureClient = ApertureClient(),
 ) {
 
     suspend fun transcribe(input: EngineInput): EngineResult {
@@ -98,41 +101,53 @@ class TranscriptionEngine(
         val primaryReady = keyStore.usableKeys(primary, limit).isNotEmpty()
         val secondary = order.drop(1).firstOrNull { keyStore.usableKeys(it, limit).isNotEmpty() }
         val secondaryReady = !input.preview && settings.fallbackEnabled && secondary != null
+        val apertureAllowed = !input.preview &&
+            settings.apertureFallbackEnabled &&
+            (!input.streamingSegment || settings.apertureStreamingEnabled)
 
         if (input.preview && !primaryReady) {
             return EngineResult.Failure("Aucune clé ${primary.shortLabel} disponible")
         }
+
+        var outcome: ProviderOutcome
         if (!primaryReady && !secondaryReady) {
-            val capped = keyStore.keys(primary).any { it.enabled }
-            return EngineResult.Failure(
-                if (capped && limit > 0) {
-                    "Plafond quotidien atteint pour ${primary.shortLabel} ($limit requêtes/clé)."
-                } else {
-                    "Ajoute une clé API ${primary.shortLabel} dans l'application pour dicter."
-                },
-            )
-        }
-
-        val effectivePrimary = if (primaryReady) primary else secondary!!
-        val effectiveSecondary = if (primaryReady) secondary else null
-
-        val outcome = when {
-            input.preview || effectiveSecondary == null -> callProvider(
-                provider = effectivePrimary,
-                wav = input.wav,
-                settings = settings,
-                systemInstruction = systemInstruction,
-                vocabulary = vocabulary,
-                timeoutMs = if (input.preview) 9_000L else 20_000L,
-            )
-            else -> raceProviders(
-                primary = effectivePrimary,
-                secondary = effectiveSecondary,
-                wav = input.wav,
-                settings = settings,
-                systemInstruction = systemInstruction,
-                vocabulary = vocabulary,
-            )
+            if (!apertureAllowed) {
+                val capped = keyStore.keys(primary).any { it.enabled }
+                return EngineResult.Failure(
+                    if (capped && limit > 0) {
+                        "Plafond quotidien atteint pour ${primary.shortLabel} ($limit requêtes/clé)."
+                    } else {
+                        "Ajoute une clé API ${primary.shortLabel} dans l'application pour dicter."
+                    },
+                )
+            }
+            outcome = aperture.transcribe(input.wav, settings.language, 30_000L)
+        } else {
+            val effectivePrimary = if (primaryReady) primary else secondary!!
+            val effectiveSecondary = if (primaryReady) secondary else null
+            outcome = when {
+                input.preview || effectiveSecondary == null -> callProvider(
+                    provider = effectivePrimary,
+                    wav = input.wav,
+                    settings = settings,
+                    systemInstruction = systemInstruction,
+                    vocabulary = vocabulary,
+                    timeoutMs = if (input.preview) 9_000L else 20_000L,
+                )
+                else -> raceProviders(
+                    primary = effectivePrimary,
+                    secondary = effectiveSecondary,
+                    wav = input.wav,
+                    settings = settings,
+                    systemInstruction = systemInstruction,
+                    vocabulary = vocabulary,
+                )
+            }
+            // Secours sans clé, uniquement après l'échec des fournisseurs à clé.
+            if (!outcome.ok && apertureAllowed) {
+                val fallback = aperture.transcribe(input.wav, settings.language, 30_000L)
+                if (fallback.ok) outcome = fallback
+            }
         }
 
         if (!outcome.ok) {
@@ -315,6 +330,11 @@ class TranscriptionEngine(
                     language = settings.language,
                     timeoutMs = timeoutMs,
                 )
+                Provider.APERTURE -> aperture.transcribe(
+                    wav = wav,
+                    language = settings.language,
+                    timeoutMs = timeoutMs,
+                )
             }
 
             if (outcome.ok) {
@@ -350,6 +370,7 @@ class TranscriptionEngine(
         val order = when (provider) {
             Provider.GROQ -> listOf(Provider.GROQ, Provider.CLOUDFLARE)
             Provider.CLOUDFLARE -> listOf(Provider.CLOUDFLARE, Provider.GROQ)
+            Provider.APERTURE -> listOf(Provider.GROQ, Provider.CLOUDFLARE)
             Provider.GEMINI -> emptyList()
         }
         for (candidate in order) {
@@ -404,12 +425,14 @@ class TranscriptionEngine(
         Provider.GEMINI -> settings.geminiModel.ifBlank { Provider.GEMINI.defaultModel }
         Provider.GROQ -> settings.groqModel.ifBlank { Provider.GROQ.defaultModel }
         Provider.CLOUDFLARE -> settings.cloudflareModel.ifBlank { Provider.CLOUDFLARE.defaultModel }
+        Provider.APERTURE -> Provider.APERTURE.defaultModel
     }
 
     suspend fun testKey(provider: Provider, secret: String): Result<String> = when (provider) {
         Provider.GEMINI -> gemini.testKey(secret)
         Provider.GROQ -> groq.testKey(secret)
         Provider.CLOUDFLARE -> cloudflare.testKey(secret)
+        Provider.APERTURE -> Result.success("Aucune clé requise")
     }
 
     private fun choosePrompt(input: EngineInput): PromptPreset {
@@ -425,6 +448,7 @@ class TranscriptionEngine(
         Provider.GEMINI -> listOf(Provider.GEMINI, Provider.GROQ, Provider.CLOUDFLARE)
         Provider.GROQ -> listOf(Provider.GROQ, Provider.CLOUDFLARE, Provider.GEMINI)
         Provider.CLOUDFLARE -> listOf(Provider.CLOUDFLARE, Provider.GEMINI, Provider.GROQ)
+        Provider.APERTURE -> listOf(Provider.APERTURE)
     }
 
     companion object {

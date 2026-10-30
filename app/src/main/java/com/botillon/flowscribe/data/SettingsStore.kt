@@ -51,6 +51,8 @@ class SettingsStore(private val context: Context) {
             insertMode = runCatching { InsertMode.valueOf(p[Keys.INSERT_MODE] ?: "AUTO") }.getOrDefault(InsertMode.AUTO),
             livePreview = p[Keys.LIVE_PREVIEW] ?: false,
             previewIntervalMs = (p[Keys.PREVIEW_INTERVAL] ?: 4000L).coerceIn(1500L, 6000L),
+            apertureFallbackEnabled = p[Keys.APERTURE_FALLBACK] ?: true,
+            apertureStreamingEnabled = p[Keys.APERTURE_STREAMING] ?: true,
             maxDurationSec = (p[Keys.MAX_DURATION] ?: 90).coerceIn(30, 600),
             bubbleSizeDp = (p[Keys.BUBBLE_SIZE] ?: 60).coerceIn(46, 80),
             bubbleOpacity = (p[Keys.BUBBLE_OPACITY] ?: 1f).coerceIn(0.55f, 1f),
@@ -137,6 +139,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setSendAppContext(value: Boolean) = edit { it[Keys.SEND_APP_CONTEXT] = value }
     suspend fun setAppAwarePrompts(value: Boolean) = edit { it[Keys.APP_AWARE_PROMPTS] = value }
     suspend fun setStreamingMode(value: Boolean) = edit { it[Keys.STREAMING_MODE] = value }
+    suspend fun setApertureFallbackEnabled(value: Boolean) = edit { it[Keys.APERTURE_FALLBACK] = value }
+    suspend fun setApertureStreamingEnabled(value: Boolean) = edit { it[Keys.APERTURE_STREAMING] = value }
     suspend fun setDailyKeyRequestLimit(value: Int) = edit { it[Keys.DAILY_KEY_LIMIT] = value.coerceIn(0, 500) }
     suspend fun setOnboardingDone(value: Boolean) = edit { it[Keys.ONBOARDING] = value }
 
@@ -201,6 +205,8 @@ class SettingsStore(private val context: Context) {
             appendLine("    \"language\": \"${settings.language}\",")
             appendLine("    \"appAwarePrompts\": ${settings.appAwarePrompts},")
             appendLine("    \"sendAppContext\": ${settings.sendAppContext},")
+            appendLine("    \"apertureFallbackEnabled\": ${settings.apertureFallbackEnabled},")
+            appendLine("    \"apertureStreamingEnabled\": ${settings.apertureStreamingEnabled},")
             appendLine("    \"bubbleGesture\": \"${settings.bubbleGesture.name}\"," )
             appendLine("    \"punctuation\": ${settings.punctuation},")
             appendLine("    \"spokenCommands\": ${settings.spokenCommands},")
@@ -261,6 +267,8 @@ class SettingsStore(private val context: Context) {
         val SEND_APP_CONTEXT = booleanPreferencesKey("send_app_context")
         val APP_AWARE_PROMPTS = booleanPreferencesKey("app_aware_prompts")
         val STREAMING_MODE = booleanPreferencesKey("streaming_mode")
+        val APERTURE_FALLBACK = booleanPreferencesKey("aperture_fallback")
+        val APERTURE_STREAMING = booleanPreferencesKey("aperture_streaming")
         val DAILY_KEY_LIMIT = intPreferencesKey("daily_key_limit")
         val ONBOARDING = booleanPreferencesKey("onboarding_done")
         val PROMPTS = stringPreferencesKey("prompts_v1")

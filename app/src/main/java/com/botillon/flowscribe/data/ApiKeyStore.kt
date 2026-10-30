@@ -41,7 +41,11 @@ class ApiKeyStore(context: Context) {
 
     fun count(provider: Provider): Int = keys(provider).size
 
-    fun usableKeys(provider: Provider, dailyLimit: Int = 0): List<ApiKeyEntry> = keys(provider)
+    fun usableKeys(provider: Provider, dailyLimit: Int = 0): List<ApiKeyEntry> {
+        if (!provider.requiresKey) {
+            return listOf(ApiKeyEntry(id = "no-key", label = "Sans clé", secret = "no-key"))
+        }
+        return keys(provider)
         .filter {
             it.enabled &&
                 !it.isCoolingDown &&
@@ -49,8 +53,10 @@ class ApiKeyStore(context: Context) {
                 (dailyLimit <= 0 || it.requestsToday < dailyLimit)
         }
         .sortedBy { it.lastUsedAt }
+    }
 
     fun add(provider: Provider, label: String, secret: String): Result<ApiKeyEntry> = synchronized(lock) {
+        if (!provider.requiresKey) return Result.failure(IllegalArgumentException("Ce fournisseur ne nécessite aucune clé"))
         val cleaned = secret.trim()
         if (cleaned.length < 8) return Result.failure(IllegalArgumentException("Clé trop courte"))
         if (provider == Provider.CLOUDFLARE &&

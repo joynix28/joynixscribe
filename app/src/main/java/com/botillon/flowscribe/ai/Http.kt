@@ -21,7 +21,7 @@ internal object Http {
         .build()
 
     fun clientWithTimeout(ms: Long): OkHttpClient = client.newBuilder()
-        .callTimeout(ms.coerceIn(800L, 30_000L), TimeUnit.MILLISECONDS)
+        .callTimeout(ms.coerceIn(800L, 120_000L), TimeUnit.MILLISECONDS)
         .build()
 }
 

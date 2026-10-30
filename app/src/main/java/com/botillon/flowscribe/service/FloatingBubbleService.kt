@@ -477,6 +477,7 @@ class FloatingBubbleService : Service() {
                         prompts = prompts,
                         dictionary = dictionary,
                         preview = false,
+                        streamingSegment = true,
                         appName = currentAppName,
                         appPackage = currentAppPackage,
                     ),

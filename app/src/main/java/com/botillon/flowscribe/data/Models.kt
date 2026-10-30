@@ -11,6 +11,7 @@ enum class Provider(
     val docsUrl: String,
     val defaultModel: String,
     val models: List<String>,
+    val requiresKey: Boolean = true,
 ) {
     GEMINI(
         id = "gemini",
@@ -49,6 +50,16 @@ enum class Provider(
             "@cf/deepgram/nova-3",
             "@cf/xai/grok-stt",
         ),
+    ),
+    APERTURE(
+        id = "aperture",
+        label = "Aperture Sciences",
+        shortLabel = "Aperture",
+        keyHint = "aucune clé",
+        docsUrl = "https://aperture-sciences.com/api/audio/transcribe",
+        defaultModel = "parakeet",
+        models = listOf("parakeet"),
+        requiresKey = false,
     );
 
     val isSpeechToText: Boolean get() = this != GEMINI
@@ -212,6 +223,10 @@ data class AppSettings(
     val insertMode: InsertMode = InsertMode.AUTO,
     val livePreview: Boolean = false,
     val previewIntervalMs: Long = 4000L,
+    /** Secours sans clé : Aperture Sciences, après échec des fournisseurs à clé. */
+    val apertureFallbackEnabled: Boolean = true,
+    /** Autorise Aperture sur les segments du mode streaming (pseudo-live). */
+    val apertureStreamingEnabled: Boolean = true,
     val maxDurationSec: Int = 90,
     val bubbleSizeDp: Int = 60,
     val bubbleOpacity: Float = 1f,

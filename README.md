@@ -12,7 +12,7 @@ navigateur, notes, formulaires… Elle ne remplace pas le clavier, elle s'y ajou
 
 - **Bulle flottante** toujours accessible, personnalisable (couleur, icône, taille,
   opacité, geste tap ou maintenir-pour-parler).
-- **3 moteurs IA** : Google Gemini, Groq Whisper, Cloudflare Workers AI.
+- **3 moteurs IA à clé** : Google Gemini, Groq Whisper, Cloudflare Workers AI, avec **Aperture Sciences en secours sans clé**.
 - **Mode streaming (live)** : le texte apparaît pendant que tu parles, segmenté sur
   les silences, sans attendre la fin.
 - **Styles adaptatifs** : le style de sortie se choisit automatiquement selon
@@ -28,7 +28,7 @@ navigateur, notes, formulaires… Elle ne remplace pas le clavier, elle s'y ajou
 
 - Bulle flottante personnalisable : couleur, icône, taille, opacité, geste (tap ou
   maintenir pour parler puis relâcher pour envoyer).
-- Trois fournisseurs : Google Gemini, Groq Whisper, Cloudflare Workers AI.
+- Trois fournisseurs à clé : Google Gemini, Groq Whisper, Cloudflare Workers AI. Secours sans clé : Aperture Sciences.
 - Styles de sortie adaptables à l'application active (détection du nom et du package).
 - Dictionnaire personnel, ponctuation automatique, typographie française.
 - Historique local, export de configuration (sans les clés).
@@ -74,10 +74,24 @@ une capture ou un message public.
 
 ## Secours audio : Aperture
 
-L'endpoint `https://aperture-sciences.com/api/audio/transcribe` n'accepte que des
-URLs Discord CDN (`cdn.discordapp.com`, `media.discordapp.net`,
-`cdn.discordapp.net`) et refuse tout fichier audio local. Il n'est donc pas
-utilisable comme secours pour une dictée locale et n'est pas intégré.
+L'endpoint `https://aperture-sciences.com/api/audio/transcribe` accepte maintenant
+les URLs publiques **et** l'envoi direct d'un fichier en `multipart/form-data`.
+Aucune clé API n'est nécessaire.
+
+JoynixScribe l'utilise comme **secours**, uniquement après l'échec des
+fournisseurs à clé. Deux modes sont disponibles dans Réglages → Latence :
+
+- **Secours normal** : à l'arrêt de la dictée, si Gemini/Groq/Cloudflare échouent.
+- **Streaming improvisé** : en mode streaming, chaque segment de parole peut être
+  envoyé à Aperture quand les autres fournisseurs échouent.
+
+L'API limite le fichier à environ 1 Mio. L'app découpe donc le WAV en tranches de
+20 s (640 Kio max), envoie chaque tranche et recolle les textes. Le mode normal
+peut donc prendre plus de temps sur une longue dictée ; le mode streaming reste
+réactif car les segments sont courts.
+
+Aperture ne demande aucune clé et n'est jamais utilisé en aperçu live pour éviter
+les appels inutiles.
 
 ## Cloudflare Worker IA comme proxy
 

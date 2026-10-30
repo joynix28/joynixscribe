@@ -296,6 +296,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setSendAppContext(value: Boolean) = launchStore { setSendAppContext(value) }
     fun setAppAwarePrompts(value: Boolean) = launchStore { setAppAwarePrompts(value) }
     fun setStreamingMode(value: Boolean) = launchStore { setStreamingMode(value) }
+    fun setApertureFallbackEnabled(value: Boolean) = launchStore { setApertureFallbackEnabled(value) }
+    fun setApertureStreamingEnabled(value: Boolean) = launchStore { setApertureStreamingEnabled(value) }
     fun setDailyKeyRequestLimit(value: Int) = launchStore { setDailyKeyRequestLimit(value) }
 
     fun completeOnboarding() = launchStore { setOnboardingDone(true) }

@@ -133,7 +133,7 @@ fun KeysScreen(
             }
         }
 
-        items(Provider.entries, key = { it.id }) { provider ->
+        items(Provider.entries.filter { it.requiresKey }, key = { it.id }) { provider ->
             ProviderCard(
                 provider = provider,
                 keys = keys[provider].orEmpty(),
@@ -229,6 +229,7 @@ private fun ProviderCard(
         Provider.GEMINI -> MaterialTheme.colorScheme.primary
         Provider.GROQ -> MaterialTheme.colorScheme.tertiary
         Provider.CLOUDFLARE -> MaterialTheme.colorScheme.secondary
+        Provider.APERTURE -> MaterialTheme.colorScheme.secondary
     }
     FlowCard(contentPadding = 16) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -244,6 +245,7 @@ private fun ProviderCard(
                         Provider.GEMINI -> Icons.Rounded.AutoAwesome
                         Provider.GROQ -> Icons.Rounded.Bolt
                         Provider.CLOUDFLARE -> Icons.Rounded.Cloud
+                        Provider.APERTURE -> Icons.Rounded.Cloud
                     },
                     null,
                     tint = accent,
@@ -258,6 +260,7 @@ private fun ProviderCard(
                         Provider.GEMINI -> "gemini-3.5-flash-lite · économique et rapide"
                         Provider.GROQ -> "whisper-large-v3-turbo · 0,04 $/heure"
                         Provider.CLOUDFLARE -> "whisper-large-v3-turbo · 10 000 neurons/jour offerts"
+                        Provider.APERTURE -> "parakeet · sans clé"
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -591,6 +594,8 @@ private fun AddKeyDialog(
                             "Crée une clé dans la console Groq. Whisper turbo coûte 0,04 $ par heure d'audio."
                         Provider.CLOUDFLARE ->
                             "Colle `accountId|token`. Le compte Cloudflare est gratuit : 10 000 neurons par jour, whisper-turbo inclus."
+                        Provider.APERTURE ->
+                            "Aucune clé requise. Aperture est utilisé comme secours sans compte."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

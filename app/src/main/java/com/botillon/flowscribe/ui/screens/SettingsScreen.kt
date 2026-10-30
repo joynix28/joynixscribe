@@ -144,7 +144,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
                 ChoiceChips(
-                    options = Provider.entries,
+                    options = Provider.entries.filter { it.requiresKey },
                     selected = settings.primary,
                     label = { it.shortLabel },
                     onSelect = { vm.setPrimary(it) },
@@ -249,6 +249,28 @@ fun SettingsScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Segmentation automatique sur les silences. Coût un peu plus élevé (plusieurs appels), mais retour immédiat. En cas de micro de mauvaise qualité, les segments non vocaux sont ignorés.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                DividerLine()
+                SwitchRow(
+                    icon = Icons.Rounded.Cloud,
+                    title = "Secours Aperture",
+                    subtitle = "Sans clé : prend le relais si les fournisseurs à clé échouent",
+                    checked = settings.apertureFallbackEnabled,
+                    onChange = { vm.setApertureFallbackEnabled(it) },
+                )
+                if (settings.apertureFallbackEnabled) {
+                    SwitchRow(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = "Aperture en streaming (improvisé)",
+                        subtitle = "Chaque segment est envoyé à Aperture quand les autres échouent. Découpe locale sous 1 Mo.",
+                        checked = settings.apertureStreamingEnabled,
+                        onChange = { vm.setApertureStreamingEnabled(it) },
+                    )
+                }
+                Text(
+                    "Aperture Sciences transcrit sans clé. L'API limite le fichier à environ 1 Mo : l'app découpe l'audio en tranches de 20 s et recolle le texte. En mode normal, le secours part après l'arrêt ; en streaming, il s'applique aux segments.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -644,6 +666,7 @@ fun SettingsScreen(
                 Provider.GEMINI -> settings.geminiModel
                 Provider.GROQ -> settings.groqModel
                 Provider.CLOUDFLARE -> settings.cloudflareModel
+                Provider.APERTURE -> settings.cloudflareModel
             },
             onDismiss = { customModelFor = null },
             onSave = {
@@ -651,6 +674,7 @@ fun SettingsScreen(
                     Provider.GEMINI -> vm.setGeminiModel(it)
                     Provider.GROQ -> vm.setGroqModel(it)
                     Provider.CLOUDFLARE -> vm.setCloudflareModel(it)
+                    Provider.APERTURE -> Unit
                 }
                 customModelFor = null
             },
@@ -776,11 +800,13 @@ private fun ModelDropdown(
         Provider.GEMINI -> Icons.Rounded.AutoAwesome
         Provider.GROQ -> Icons.Rounded.Bolt
         Provider.CLOUDFLARE -> Icons.Rounded.Cloud
+        Provider.APERTURE -> Icons.Rounded.Cloud
     }
     val tint = when (provider) {
         Provider.GEMINI -> MaterialTheme.colorScheme.primary
         Provider.GROQ -> MaterialTheme.colorScheme.tertiary
         Provider.CLOUDFLARE -> MaterialTheme.colorScheme.secondary
+        Provider.APERTURE -> MaterialTheme.colorScheme.secondary
     }
     Box {
         SettingRow(
@@ -935,6 +961,7 @@ private fun CustomModelDialog(
                                 Provider.GEMINI -> "gemini-3.5-flash-lite"
                                 Provider.GROQ -> "whisper-large-v3-turbo"
                                 Provider.CLOUDFLARE -> "@cf/openai/whisper-large-v3-turbo"
+                                Provider.APERTURE -> "parakeet"
                             },
                         )
                     },
