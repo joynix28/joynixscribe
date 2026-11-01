@@ -137,6 +137,8 @@ raccourci Espace pour démarrer/arrêter.
 
 L'exécutable Windows est publié dans la release.
 
+Un installeur Windows (NSIS) est également fourni : `JoynixScribe-Setup-2.2.0.exe`.
+
 ## Licence
 
 Licence d'attribution JoynixScribe (JAL) v1.0 — voir `LICENSE`.
