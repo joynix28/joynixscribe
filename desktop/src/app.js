@@ -21,8 +21,8 @@
     poll: null,
     streamTimer: null,
     streamBusy: false,
-    levels: new Array(48).fill(0),
-    compactLevels: new Array(16).fill(0),
+    levels: Array.from({ length: 48 }, () => 0),
+    compactLevels: Array.from({ length: 16 }, () => 0),
     pendingLevel: 0,
     lastTick: 0,
     lastPush: 0,
@@ -47,25 +47,52 @@
     }
   }
 
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function svgIcon(href) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'ico');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', href);
+    svg.appendChild(use);
+    return svg;
+  }
+
   function toast(message, kind = 'info') {
     const box = $('toasts');
     if (!box) return;
     const el = document.createElement('div');
     el.className = 'toast ' + kind;
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('class', 'ico');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', kind === 'error' ? '#i-alert' : kind === 'ok' ? '#i-check' : '#i-bolt');
-    icon.appendChild(use);
+    const href = kind === 'error' ? '#i-alert' : kind === 'ok' ? '#i-check' : '#i-bolt';
     const span = document.createElement('span');
     span.textContent = message;
-    el.append(icon, span);
+    el.append(svgIcon(href), span);
     box.appendChild(el);
     setTimeout(() => {
       el.style.opacity = '0';
       el.style.transform = 'translateY(6px)';
       setTimeout(() => el.remove(), 220);
     }, kind === 'error' ? 7000 : 3600);
+  }
+
+  async function copyToClipboard(text) {
+    if (!text) return toast('Rien à copier.', 'info');
+    try {
+      await call('copy_text', { text });
+      toast('Texte copié.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function insertText(text) {
+    if (!text) return toast('Rien à insérer.', 'info');
+    try {
+      await call('type_text', { text });
+      toast('Texte inséré dans la fenêtre active.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   }
 
   function mergeText(a, b) {
@@ -100,7 +127,7 @@
   function setState(label, cls) {
     const el = $('recState');
     el.className = 'state' + (cls ? ' ' + cls : '');
-    el.innerHTML = '';
+    el.replaceChildren();
     const dot = document.createElement('i');
     dot.className = 'dot';
     el.append(dot, document.createTextNode(label));
@@ -343,9 +370,23 @@
     btn.setAttribute('aria-label', active ? 'Arrêter la dictée' : 'Démarrer la dictée');
     $('recordLabel').textContent = active ? 'Arrêter' : 'Parler';
     $('compactMic').classList.toggle('is-recording', active);
-    $('recHint').innerHTML = active
-      ? 'Parle normalement — clique à nouveau ou <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Espace</kbd> pour terminer.'
-      : 'Appuie sur <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Espace</kbd> depuis n\u2019importe quelle application.';
+    renderRecHint(active);
+  }
+
+  // Compose « … Ctrl+Alt+Espace … » avec des nœuds DOM (pas d'innerHTML).
+  function renderRecHint(active) {
+    const el = $('recHint');
+    el.textContent = '';
+    const before = active ? 'Parle normalement — clique à nouveau ou ' : 'Appuie sur ';
+    const after = active ? ' pour terminer.' : ' depuis n\u2019importe quelle application.';
+    el.append(document.createTextNode(before));
+    ['Ctrl', 'Alt', 'Espace'].forEach((key, i) => {
+      if (i > 0) el.append(document.createTextNode('+'));
+      const kbd = document.createElement('kbd');
+      kbd.textContent = key;
+      el.append(kbd);
+    });
+    el.append(document.createTextNode(after));
   }
 
   async function toggleRecord() {
@@ -359,7 +400,7 @@
   function renderHistory() {
     const list = $('historyList');
     const q = ($('historySearch').value || '').trim().toLowerCase();
-    list.innerHTML = '';
+    list.replaceChildren();
     const items = state.history.filter((h) => !q || (h.text || '').toLowerCase().includes(q));
     $('historyEmpty').classList.toggle('hidden', items.length > 0);
 
@@ -383,13 +424,13 @@
       copy.className = 'icon-btn';
       copy.title = 'Copier';
       copy.dataset.copy = item.id;
-      copy.innerHTML = '<svg class="ico"><use href="#i-copy"/></svg>';
+      copy.appendChild(svgIcon('#i-copy'));
 
       const del = document.createElement('button');
       del.className = 'icon-btn';
       del.title = 'Supprimer';
       del.dataset.del = item.id;
-      del.innerHTML = '<svg class="ico"><use href="#i-trash"/></svg>';
+      del.appendChild(svgIcon('#i-trash'));
 
       actions.append(copy, del);
       head.append(badge, date, dur, actions);
@@ -408,14 +449,7 @@
     const delBtn = e.target.closest('[data-del]');
     if (copyBtn) {
       const item = state.history.find((h) => h.id === copyBtn.dataset.copy);
-      if (item) {
-        try {
-          await call('copy_text', { text: item.text });
-          toast('Texte copié.', 'ok');
-        } catch (err) {
-          toast(err.message, 'error');
-        }
-      }
+      if (item) await copyToClipboard(item.text);
     }
     if (delBtn) {
       try {
@@ -449,7 +483,7 @@
     selectProvider(s.provider || 'Gemini', false);
     updateUsage(s.used_today || 0, s.daily_limit || 0);
     $('providerPill').textContent = s.provider || 'Gemini';
-    $('streamHint').textContent = s.streaming ? 'Streaming actif : le texte s\u2019écrit pendant que tu parles.' : '';
+    updateStreamHint();
   }
 
   function selectProvider(name, persist) {
@@ -526,6 +560,49 @@
     }
   }
 
+  function updateStreamHint() {
+    $('streamHint').textContent = $('streaming').checked
+      ? 'Streaming actif : le texte s\u2019écrit pendant que tu parles.'
+      : '';
+  }
+
+  function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    $('theme').value = next;
+    persistSettings(120);
+  }
+
+  function openDataFolder() {
+    call('open_data_folder').catch((e) => toast(e.message, 'error'));
+  }
+
+  function openMicSettings() {
+    call('open_mic_settings').catch((e) => toast(e.message, 'error'));
+  }
+
+  async function onResetUsage() {
+    if (!state.settings) return;
+    try {
+      state.settings = await call('reset_usage');
+      updateUsage(0, state.settings.daily_limit);
+      toast('Compteur remis à zéro.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function onClearHistory() {
+    if (!confirm("Effacer tout l'historique ?")) return;
+    try {
+      state.history = await call('history_clear');
+      renderHistory();
+      toast('Historique effacé.', 'ok');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
   async function onTestKey() {
     const btn = $('testKeyBtn');
     const out = $('testResult');
@@ -550,7 +627,10 @@
     document.body.classList.add('is-compact');
     try {
       await call('set_compact', { compact: true });
-    } catch (_) {}
+    } catch (_) {
+      // L'interface passe quand même en mode compact : seule la fenêtre native
+      // garde sa taille si le redimensionnement est refusé.
+    }
   }
 
   async function exitCompact() {
@@ -558,41 +638,22 @@
     document.body.classList.remove('is-compact');
     try {
       await call('set_compact', { compact: false });
-    } catch (_) {}
+    } catch (_) {
+      // Idem : on ne bloque pas la sortie du mode compact.
+    }
   }
 
   /* ── câblage ─────────────────────────────────────────── */
 
-  function bind() {
-    $$('.nav-item').forEach((b) => b.addEventListener('click', () => showPage(b.dataset.page)));
-
+  function bindRecording() {
     $('recordBtn').addEventListener('click', toggleRecord);
     $('compactMic').addEventListener('click', toggleRecord);
     $('compactBtn').addEventListener('click', enterCompact);
     $('compactBtn2').addEventListener('click', enterCompact);
     $('compactClose').addEventListener('click', exitCompact);
 
-    $('copyBtn').addEventListener('click', async () => {
-      const text = $('transcript').value.trim();
-      if (!text) return toast('Rien à copier.', 'info');
-      try {
-        await call('copy_text', { text });
-        toast('Texte copié.', 'ok');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    });
-
-    $('typeBtn').addEventListener('click', async () => {
-      const text = $('transcript').value.trim();
-      if (!text) return toast('Rien à insérer.', 'info');
-      try {
-        await call('type_text', { text });
-        toast('Texte inséré dans la fenêtre active.', 'ok');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    });
+    $('copyBtn').addEventListener('click', () => copyToClipboard($('transcript').value.trim()));
+    $('typeBtn').addEventListener('click', () => insertText($('transcript').value.trim()));
 
     $('clearBtn').addEventListener('click', () => {
       setTranscript('');
@@ -600,20 +661,15 @@
     });
 
     $('transcript').addEventListener('input', updateWordCount);
+  }
 
+  function bindHistory() {
     $('historySearch').addEventListener('input', renderHistory);
     $('historyList').addEventListener('click', onHistoryClick);
-    $('clearHistory').addEventListener('click', async () => {
-      if (!confirm("Effacer tout l'historique ?")) return;
-      try {
-        state.history = await call('history_clear');
-        renderHistory();
-        toast('Historique effacé.', 'ok');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    });
+    $('clearHistory').addEventListener('click', onClearHistory);
+  }
 
+  function bindSettings() {
     $$('#providerSeg button').forEach((b) =>
       b.addEventListener('click', () => selectProvider(b.dataset.provider, true))
     );
@@ -629,15 +685,12 @@
       (id) => $(id).addEventListener('change', () => persistSettings(250))
     );
 
-    ['streaming', 'apertureFallback', 'autoType', 'alwaysOnTop', 'autostart', 'closeToTray', 'dailyLimit'].forEach((id) =>
-      $(id).addEventListener('change', () => {
-        persistSettings(120);
-        if (id === 'streaming') {
-          $('streamHint').textContent = $('streaming').checked
-            ? 'Streaming actif : le texte s\u2019écrit pendant que tu parles.'
-            : '';
-        }
-      })
+    ['streaming', 'apertureFallback', 'autoType', 'alwaysOnTop', 'autostart', 'closeToTray', 'dailyLimit'].forEach(
+      (id) =>
+        $(id).addEventListener('change', () => {
+          persistSettings(120);
+          if (id === 'streaming') updateStreamHint();
+        })
     );
 
     $('theme').addEventListener('change', () => {
@@ -645,29 +698,16 @@
       persistSettings(120);
     });
 
-    $('themeBtn').addEventListener('click', () => {
-      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      applyTheme(next);
-      $('theme').value = next;
-      persistSettings(120);
-    });
-
+    $('themeBtn').addEventListener('click', toggleTheme);
     $('saveBtn').addEventListener('click', onSaveClick);
     $('testKeyBtn').addEventListener('click', onTestKey);
-    $('openDataBtn').addEventListener('click', () => call('open_data_folder').catch((e) => toast(e.message, 'error')));
-    $('aboutFolderBtn').addEventListener('click', () => call('open_data_folder').catch((e) => toast(e.message, 'error')));
-    $('micSettingsBtn').addEventListener('click', () => call('open_mic_settings').catch((e) => toast(e.message, 'error')));
-    $('resetUsageBtn').addEventListener('click', async () => {
-      if (!state.settings) return;
-      try {
-        state.settings = await call('reset_usage');
-        updateUsage(0, state.settings.daily_limit);
-        toast('Compteur remis à zéro.', 'ok');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    });
+    $('openDataBtn').addEventListener('click', openDataFolder);
+    $('aboutFolderBtn').addEventListener('click', openDataFolder);
+    $('micSettingsBtn').addEventListener('click', openMicSettings);
+    $('resetUsageBtn').addEventListener('click', onResetUsage);
+  }
 
+  function bindGlobalKeys() {
     $$('[data-url]').forEach((el) =>
       el.addEventListener('click', (e) => {
         e.preventDefault();
@@ -697,6 +737,14 @@
     }
   }
 
+  function bind() {
+    $$('.nav-item').forEach((b) => b.addEventListener('click', () => showPage(b.dataset.page)));
+    bindRecording();
+    bindHistory();
+    bindSettings();
+    bindGlobalKeys();
+  }
+
   let booted = false;
   async function boot() {
     if (booted) return;
@@ -721,12 +769,16 @@
     try {
       state.history = await call('history_list');
       renderHistory();
-    } catch (_) {}
+    } catch (_) {
+      // Aucun fichier d'historique au premier lancement : la liste reste vide.
+    }
 
     try {
       $('dataPath').textContent = await call('data_dir');
       $('versionPill').textContent = await call('app_version');
-    } catch (_) {}
+    } catch (_) {
+      // Informations purement décoratives : on garde les valeurs par défaut.
+    }
 
     try {
       const info = await call('mic_info');
@@ -737,7 +789,9 @@
       if (!info.hotkey_ok) {
         toast('Raccourci global indisponible : une autre application utilise Ctrl+Alt+Espace.', 'error');
       }
-    } catch (_) {}
+    } catch (_) {
+      // La vérification du micro est indicative : l'app reste utilisable.
+    }
   }
 
   window.addEventListener('DOMContentLoaded', boot);
