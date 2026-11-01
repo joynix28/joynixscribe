@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JoynixScribe</title>
+<style>
+  :root {
+    --bg: #0b0b12;
+    --bg2: #14141f;
+    --card: rgba(255,255,255,0.06);
+    --border: rgba(255,255,255,0.10);
+    --text: #e8e6f0;
+    --muted: #9a96ad;
+    --accent: #7c5cff;
+    --accent2: #b39cff;
+    --danger: #ff5c7a;
+    --ok: #3dd6a3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: radial-gradient(1200px 600px at 50% -10%, #1a1530, var(--bg)); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+  .app { display: flex; flex-direction: column; height: 100vh; padding: 20px; gap: 16px; }
+  .header { display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #9e86ff, #4b2fbf); display: grid; place-items: center; font-weight: 700; box-shadow: 0 8px 24px rgba(124,92,255,0.35); }
+  .title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .subtitle { font-size: 12px; color: var(--muted); }
+  .iconbtn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: all .15s; }
+  .iconbtn:hover { background: rgba(255,255,255,0.10); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; backdrop-filter: blur(10px); }
+  .record-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .record-btn {
+    width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
+    background: radial-gradient(circle at 30% 30%, var(--accent2), var(--accent) 60%, #2a1b6b);
+    color: white; font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
+    box-shadow: 0 12px 40px rgba(124,92,255,0.45), inset 0 2px 4px rgba(255,255,255,0.25);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .record-btn:hover { transform: scale(1.03); }
+  .record-btn.recording { background: radial-gradient(circle at 30% 30%, #ff8a9a, #e24b4b 60%, #7a1530); box-shadow: 0 12px 40px rgba(226,75,75,0.5); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  .status { font-size: 13px; color: var(--muted); min-height: 18px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--danger); }
+  .textarea {
+    width: 100%; min-height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); padding: 14px; font-size: 15px; line-height: 1.5;
+    resize: vertical; font-family: inherit;
+  }
+  .textarea:focus { outline: none; border-color: var(--accent); }
+  .actions { display: flex; gap: 8px; }
+  .btn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 13px; transition: all .15s; }
+  .btn:hover { background: rgba(255,255,255,0.10); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn.primary:hover { background: var(--accent2); }
+  .settings { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+  .field input, .field select {
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; font-family: inherit;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .pill { font-size: 11px; padding: 4px 10px; border-radius: 999px; background: rgba(124,92,255,0.18); color: var(--accent2); border: 1px solid rgba(124,92,255,0.35); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .mic-warn { background: rgba(255,92,122,0.12); border: 1px solid rgba(255,92,122,0.35); color: #ffb3c1; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">J</div>
+      <div>
+        <div class="title">JoynixScribe</div>
+        <div class="subtitle">Dictée vocale — desktop</div>
+      </div>
+    </div>
+    <button class="iconbtn" id="settingsBtn">⚙ Réglages</button>
+  </div>
+
+  <div class="card record-wrap">
+    <button class="record-btn" id="recordBtn">● Parler</button>
+    <div class="status" id="status">Prêt</div>
+    <div id="micWarn" style="display:none" class="mic-warn"></div>
+  </div>
+
+  <div class="card" style="flex:1; display:flex; flex-direction:column; gap:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.6px;">Transcription</span>
+      <span class="pill" id="providerPill">Gemini</span>
+    </div>
+    <textarea class="textarea" id="transcript" placeholder="Le texte apparaîtra ici…"></textarea>
+    <div class="actions">
+      <button class="btn" id="copyBtn">Copier</button>
+      <button class="btn" id="typeBtn">Taper</button>
+      <button class="btn" id="clearBtn">Effacer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="settingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); align-items:center; justify-content:center; z-index:10;">
+  <div class="card" style="width:min(520px,92vw); max-height:88vh; overflow:auto; display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:18px; font-weight:700;">Réglages</div>
+      <button class="iconbtn" id="closeSettings">✕</button>
+    </div>
+
+    <div class="field">
+      <label>Fournisseur principal</label>
+      <select id="provider">
+        <option value="Gemini">Gemini</option>
+        <option value="Groq">Groq</option>
+        <option value="Cloudflare">Cloudflare</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Clé Gemini</label><input id="geminiKey" type="password" placeholder="AIza…" /></div>
+      <div class="field"><label>Modèle Gemini</label><input id="geminiModel" placeholder="gemini-3.5-flash-lite" /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Clé Groq</label><input id="groqKey" type="password" placeholder="gsk_…" /></div>
+      <div class="field"><label>Modèle Groq</label><input id="groqModel" placeholder="whisper-large-v3-turbo" /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Clé Cloudflare (accountId|token)</label><input id="cfKey" type="password" placeholder="accountId|token" /></div>
+      <div class="field"><label>Modèle Cloudflare</label><input id="cfModel" placeholder="@cf/openai/whisper-large-v3-turbo" /></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Langue</label><input id="language" placeholder="auto" /></div>
+      <div class="field"><label style="text-transform:none;">Mode streaming</label><input type="checkbox" id="streaming" style="width:auto;" /></div>
+    </div>
+
+    <div class="hint">Les clés sont stockées localement sur cet appareil. Raccourci : Espace pour démarrer/arrêter.</div>
+
+    <div class="actions">
+      <button class="btn primary" id="saveSettings">Sauvegarder</button>
+      <button class="btn" id="loadSettings">Charger</button>
+      <button class="btn" id="micSettingsBtn">Paramètres micro Windows</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const recordBtn = document.getElementById('recordBtn');
+  const status = document.getElementById('status');
+  const transcript = document.getElementById('transcript');
+  const providerPill = document.getElementById('providerPill');
+
+  let recording = false;
+  let busy = false;
+
+  function setStatus(text, cls) {
+    status.textContent = text;
+    status.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  async function toggleRecord() {
+    if (busy) return;
+    if (!recording) {
+      try {
+        await invoke('record_start');
+        recording = true;
+        recordBtn.textContent = '■ Arrêter';
+        recordBtn.classList.add('recording');
+        setStatus('Enregistrement…', '');
+      } catch (e) { setStatus('Erreur micro: ' + e, 'err'); }
+    } else {
+      recording = false;
+      recordBtn.textContent = '● Parler';
+      recordBtn.classList.remove('recording');
+      busy = true;
+      setStatus('Transcription…', '');
+      try {
+        const wavB64 = await invoke('record_stop');
+        const settings = await gatherSettings();
+        const text = await invoke('transcribe', { settings, wavB64 });
+        transcript.value = transcript.value ? transcript.value + ' ' + text : text;
+        setStatus('Terminé', 'ok');
+      } catch (e) { setStatus('Erreur: ' + e, 'err'); }
+      busy = false;
+    }
+  }
+
+  recordBtn.addEventListener('click', toggleRecord);
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !busy) { e.preventDefault(); toggleRecord(); } });
+
+  document.getElementById('copyBtn').addEventListener('click', () => invoke('copy_text', { text: transcript.value }));
+  document.getElementById('typeBtn').addEventListener('click', () => invoke('type_text', { text: transcript.value }));
+  document.getElementById('clearBtn').addEventListener('click', () => { transcript.value = ''; });
+
+  // settings
+  const modal = document.getElementById('settingsModal');
+  document.getElementById('settingsBtn').addEventListener('click', () => { modal.style.display = 'flex'; loadSettingsUI(); });
+  document.getElementById('closeSettings').addEventListener('click', () => { modal.style.display = 'none'; });
+
+  function gatherSettings() {
+    return {
+      provider: document.getElementById('provider').value,
+      gemini_key: document.getElementById('geminiKey').value,
+      groq_key: document.getElementById('groqKey').value,
+      cf_key: document.getElementById('cfKey').value,
+      gemini_model: document.getElementById('geminiModel').value || 'gemini-3.5-flash-lite',
+      groq_model: document.getElementById('groqModel').value || 'whisper-large-v3-turbo',
+      cf_model: document.getElementById('cfModel').value || '@cf/openai/whisper-large-v3-turbo',
+      language: document.getElementById('language').value || 'auto',
+      streaming: document.getElementById('streaming').checked,
+    };
+  }
+
+  async function loadSettingsUI() {
+    try {
+      const s = await invoke('load_settings');
+      document.getElementById('provider').value = s.provider || 'Gemini';
+      document.getElementById('geminiKey').value = s.gemini_key || '';
+      document.getElementById('groqKey').value = s.groq_key || '';
+      document.getElementById('cfKey').value = s.cf_key || '';
+      document.getElementById('geminiModel').value = s.gemini_model || '';
+      document.getElementById('groqModel').value = s.groq_model || '';
+      document.getElementById('cfModel').value = s.cf_model || '';
+      document.getElementById('language').value = s.language || 'auto';
+      document.getElementById('streaming').checked = !!s.streaming;
+      providerPill.textContent = s.provider || 'Gemini';
+    } catch (e) {}
+  }
+
+  document.getElementById('saveSettings').addEventListener('click', async () => {
+    const s = gatherSettings();
+    await invoke('save_settings', { settings: s });
+    providerPill.textContent = s.provider;
+    modal.style.display = 'none';
+    setStatus('Réglages sauvegardés', 'ok');
+  });
+  document.getElementById('loadSettings').addEventListener('click', loadSettingsUI);
+  document.getElementById('micSettingsBtn').addEventListener('click', () => invoke('open_mic_settings'));
+
+  // mic check
+  (async () => {
+    const ok = await invoke('has_mic');
+    const warn = document.getElementById('micWarn');
+    if (!ok) { warn.style.display = 'block'; warn.textContent = 'Aucun micro détecté. Vérifie les paramètres Windows.'; }
+  })();
+
+  loadSettingsUI();
+</script>
+</body>
+</html>
+EOF
+echo written
