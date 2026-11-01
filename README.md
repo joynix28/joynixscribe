@@ -1,16 +1,25 @@
 # JoynixScribe
 
-**Dictée vocale universelle pour Android** — une bulle flottante, un tap pour parler,
-un tap pour arrêter : le texte est transcrit par IA puis inséré dans le champ actif
-de n'importe quelle application, sans changer de clavier.
+**Dictée vocale universelle pour Android et Windows** — une bulle flottante sur
+mobile, une barre flottante sur desktop, un raccourci pour parler : le texte est
+transcrit par IA puis inséré dans le champ actif de n'importe quelle application.
 
-JoynixScribe est une application Android open source (Kotlin + Jetpack Compose) qui
-transforme la voix en texte et l'insère là où tu tapes : SMS, e-mail, Discord,
-navigateur, notes, formulaires… Elle ne remplace pas le clavier, elle s'y ajoute.
+JoynixScribe est open source (Kotlin + Jetpack Compose pour Android, Tauri v2 +
+Rust pour Windows) et transforme la voix en texte là où tu tapes : SMS, e-mail,
+Discord, navigateur, notes, formulaires, n'importe quel logiciel Windows.
 
 ## Téléchargement
 
-APK signé : [JoynixScribe-2.2.0.apk](./JoynixScribe-2.2.0.apk)
+| Plateforme | Fichier |
+|---|---|
+| Android (APK signé) | [JoynixScribe-2.4.0.apk](./JoynixScribe-2.4.0.apk) |
+| Windows (installeur, recommandé) | [JoynixScribe-Setup-2.4.0.exe](./desktop/JoynixScribe-Setup-2.4.0.exe) |
+| Windows (portable, sans installation) | [JoynixScribe-2.4.0-portable.zip](./JoynixScribe-2.4.0-portable.zip) |
+
+La version portable est une archive : décompressez-la et gardez
+`WebView2Loader.dll` à côté de `JoynixScribe.exe`. Windows 10/11 doit disposer
+du runtime [Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
+(préinstallé sur Windows 11 et sur la plupart des Windows 10 à jour).
 
 ## Présentation
 
@@ -128,16 +137,48 @@ keyPassword=...
 
 ## Application desktop (Windows)
 
-Un client desktop Rust (egui) est fourni dans `desktop/`. Il cross-compile vers
-Windows (.exe) avec `cargo build --target x86_64-pc-windows-gnu --release`.
+Le client desktop vit dans `desktop/`. C'est une vraie application **Tauri v2**
+(backend Rust + interface HTML/CSS/JS, sans bundler), compilée pour Windows en
+`x86_64-pc-windows-gnu`.
 
-Fonctionnalités : enregistrement micro, transcription Gemini/Groq/Cloudflare,
-copie presse-papiers, saisie automatique (enigo), fenêtre toujours au premier plan,
-raccourci Espace pour démarrer/arrêter.
+### Fonctionnalités
 
-L'exécutable Windows est publié dans la release.
+- **Barre flottante compacte** : réduite, toujours au-dessus des autres fenêtres,
+  déplaçable, avec forme d'onde et minuteur.
+- **Icône de notification (tray)** : menu Afficher / Démarrer-arrêter / Quitter,
+  fermeture discrète en arrière-plan.
+- **Raccourci global `Ctrl+Alt+Espace`** : démarre et arrête la dictée depuis
+  n'importe quelle application, même JoynixScribe en arrière-plan.
+- **Insertion intelligente** : le texte est tapé dans la fenêtre où tu travaillais
+  (pas dans JoynixScribe), ou copié dans le presse-papiers.
+- **Quatre fournisseurs** : Gemini, Groq, Cloudflare Workers AI et Aperture
+  (secours sans clé).
+- **Streaming** : le texte s'écrit par blocs de ~3 s pendant que tu parles, avec
+  fusion sans doublon.
+- **Réglages** : langue, consigne du modèle, secours Aperture, insertion
+  automatique, toujours au-dessus, démarrage avec Windows, thème clair/sombre,
+  limite journalière de dictées.
+- **Historique local** (300 dictées), recherche, copie, suppression.
+- **Test de clé intégré** : vérifie une clé sans consommer de transcription.
+- **Aucune capture d'écran** : seuls le micro et, si tu l'actives, le nom de
+  l'application active sont utilisés.
 
-Un installeur Windows (NSIS) est également fourni : `JoynixScribe-Setup-2.2.0.exe`.
+Les réglages et l'historique sont stockés dans
+`%APPDATA%\com.joynix.joynixscribe` — jamais dans le dossier d'installation.
+
+### Compilation
+
+```bash
+cd desktop/src-tauri
+cargo build --target x86_64-pc-windows-gnu --release
+cd ..
+makensis installer.nsi
+```
+
+L'installeur NSIS (`desktop/installer.nsi`) installe **par utilisateur**, sans
+droits administrateur, dans `%LOCALAPPDATA%\Programs\JoynixScribe`, avec
+raccourcis menu Démarrer et Bureau, option « démarrer avec Windows » et
+désinstalleur (suppression optionnelle des données).
 
 ## Licence
 

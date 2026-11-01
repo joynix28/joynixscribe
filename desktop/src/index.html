@@ -1,254 +1,414 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>JoynixScribe</title>
-<style>
-  :root {
-    --bg: #0b0b12;
-    --bg2: #14141f;
-    --card: rgba(255,255,255,0.06);
-    --border: rgba(255,255,255,0.10);
-    --text: #e8e6f0;
-    --muted: #9a96ad;
-    --accent: #7c5cff;
-    --accent2: #b39cff;
-    --danger: #ff5c7a;
-    --ok: #3dd6a3;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; background: radial-gradient(1200px 600px at 50% -10%, #1a1530, var(--bg)); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
-  .app { display: flex; flex-direction: column; height: 100vh; padding: 20px; gap: 16px; }
-  .header { display: flex; align-items: center; justify-content: space-between; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .logo { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #9e86ff, #4b2fbf); display: grid; place-items: center; font-weight: 700; box-shadow: 0 8px 24px rgba(124,92,255,0.35); }
-  .title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
-  .subtitle { font-size: 12px; color: var(--muted); }
-  .iconbtn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: all .15s; }
-  .iconbtn:hover { background: rgba(255,255,255,0.10); }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; backdrop-filter: blur(10px); }
-  .record-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .record-btn {
-    width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
-    background: radial-gradient(circle at 30% 30%, var(--accent2), var(--accent) 60%, #2a1b6b);
-    color: white; font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
-    box-shadow: 0 12px 40px rgba(124,92,255,0.45), inset 0 2px 4px rgba(255,255,255,0.25);
-    transition: transform .12s, box-shadow .12s;
-  }
-  .record-btn:hover { transform: scale(1.03); }
-  .record-btn.recording { background: radial-gradient(circle at 30% 30%, #ff8a9a, #e24b4b 60%, #7a1530); box-shadow: 0 12px 40px rgba(226,75,75,0.5); animation: pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-  .status { font-size: 13px; color: var(--muted); min-height: 18px; }
-  .status.ok { color: var(--ok); }
-  .status.err { color: var(--danger); }
-  .textarea {
-    width: 100%; min-height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border);
-    border-radius: 12px; color: var(--text); padding: 14px; font-size: 15px; line-height: 1.5;
-    resize: vertical; font-family: inherit;
-  }
-  .textarea:focus { outline: none; border-color: var(--accent); }
-  .actions { display: flex; gap: 8px; }
-  .btn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 13px; transition: all .15s; }
-  .btn:hover { background: rgba(255,255,255,0.10); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
-  .btn.primary:hover { background: var(--accent2); }
-  .settings { display: flex; flex-direction: column; gap: 12px; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
-  .field input, .field select {
-    background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text);
-    border-radius: 10px; padding: 10px 12px; font-size: 14px; font-family: inherit;
-  }
-  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
-  .row { display: flex; gap: 8px; }
-  .row > * { flex: 1; }
-  .pill { font-size: 11px; padding: 4px 10px; border-radius: 999px; background: rgba(124,92,255,0.18); color: var(--accent2); border: 1px solid rgba(124,92,255,0.35); }
-  .hint { font-size: 12px; color: var(--muted); }
-  .mic-warn { background: rgba(255,92,122,0.12); border: 1px solid rgba(255,92,122,0.35); color: #ffb3c1; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
-</style>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div class="app">
-  <div class="header">
+
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 8v4l3 2"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></symbol>
+</svg>
+
+<div class="orb orb-a"></div>
+<div class="orb orb-b"></div>
+
+<div class="shell">
+  <aside class="rail">
     <div class="brand">
-      <div class="logo">J</div>
-      <div>
-        <div class="title">JoynixScribe</div>
-        <div class="subtitle">Dictée vocale — desktop</div>
+      <img class="brand-mark" src="logo.svg" alt="" />
+      <div class="brand-text">
+        <strong>JoynixScribe</strong>
+        <span>dictée IA</span>
       </div>
     </div>
-    <button class="iconbtn" id="settingsBtn">⚙ Réglages</button>
-  </div>
 
-  <div class="card record-wrap">
-    <button class="record-btn" id="recordBtn">● Parler</button>
-    <div class="status" id="status">Prêt</div>
-    <div id="micWarn" style="display:none" class="mic-warn"></div>
-  </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item is-active" data-page="dictate">
+        <svg class="ico"><use href="#i-mic"/></svg><span>Dictée</span>
+      </button>
+      <button class="nav-item" data-page="history">
+        <svg class="ico"><use href="#i-history"/></svg><span>Historique</span>
+      </button>
+      <button class="nav-item" data-page="settings">
+        <svg class="ico"><use href="#i-settings"/></svg><span>Réglages</span>
+      </button>
+      <button class="nav-item" data-page="about">
+        <svg class="ico"><use href="#i-info"/></svg><span>À propos</span>
+      </button>
+    </nav>
 
-  <div class="card" style="flex:1; display:flex; flex-direction:column; gap:10px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.6px;">Transcription</span>
-      <span class="pill" id="providerPill">Gemini</span>
+    <div class="rail-foot">
+      <div class="usage-mini" title="Dictées aujourd'hui">
+        <svg class="ico"><use href="#i-bolt"/></svg>
+        <span id="usageMini">0</span>
+      </div>
+      <button class="icon-btn" id="themeBtn" title="Changer de thème">
+        <svg class="ico"><use href="#i-sun"/></svg>
+      </button>
     </div>
-    <textarea class="textarea" id="transcript" placeholder="Le texte apparaîtra ici…"></textarea>
-    <div class="actions">
-      <button class="btn" id="copyBtn">Copier</button>
-      <button class="btn" id="typeBtn">Taper</button>
-      <button class="btn" id="clearBtn">Effacer</button>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1 id="pageTitle">Dictée</h1>
+        <p id="pageSub">Parlez, JoynixScribe écrit — et insère le texte où vous voulez.</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill" id="providerPill">Gemini</span>
+        <button class="icon-btn" id="compactBtn" title="Mode compact flottant (toujours au-dessus)">
+          <svg class="ico"><use href="#i-expand"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="apiError" class="banner hidden">
+      <svg class="ico"><use href="#i-alert"/></svg>
+      <div>
+        <strong>Le pont applicatif n'est pas chargé.</strong>
+        <span>Ferme puis relance JoynixScribe. Si le problème persiste, réinstalle l'application.</span>
+      </div>
     </div>
-  </div>
+
+    <!-- ══════════ DICTÉE ══════════ -->
+    <section class="page is-active" id="page-dictate">
+      <div class="dictate-grid">
+        <div class="card recorder">
+          <div class="recorder-head">
+            <span class="state" id="recState"><i class="dot"></i>Prêt</span>
+            <span class="timer mono" id="recTimer">00:00</span>
+          </div>
+
+          <button class="record-btn" id="recordBtn" aria-label="Démarrer la dictée">
+            <span class="record-ring"></span>
+            <svg class="ico"><use href="#i-mic"/></svg>
+            <span class="record-label" id="recordLabel">Parler</span>
+          </button>
+
+          <canvas class="wave" id="wave" height="56"></canvas>
+
+          <p class="hint" id="recHint">Appuie sur <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Espace</kbd> depuis n'importe quelle application.</p>
+          <p class="hint subtle" id="streamHint"></p>
+        </div>
+
+        <div class="card transcript">
+          <div class="card-head">
+            <span class="card-title">Transcription</span>
+            <span class="meta" id="txMeta">—</span>
+          </div>
+          <textarea id="transcript" spellcheck="false" placeholder="Votre dictée apparaîtra ici…"></textarea>
+          <div class="row">
+            <button class="btn primary" id="copyBtn">
+              <svg class="ico"><use href="#i-copy"/></svg>Copier
+            </button>
+            <button class="btn" id="typeBtn">
+              <svg class="ico"><use href="#i-keyboard"/></svg>Insérer
+            </button>
+            <button class="btn ghost" id="clearBtn">
+              <svg class="ico"><use href="#i-trash"/></svg>Effacer
+            </button>
+            <span class="spacer"></span>
+            <span class="meta" id="wordCount">0 mot</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tips">
+        <div class="tip"><strong>Astuce</strong><span>« Insérer » tape le texte dans la fenêtre active, sans copier-coller.</span></div>
+        <div class="tip"><strong>Streaming</strong><span>Active-le dans les réglages pour voir le texte s'écrire pendant que tu parles.</span></div>
+        <div class="tip"><strong>Confidentialité</strong><span>Seul l'audio part chez le fournisseur choisi. Aucune capture d'écran.</span></div>
+      </div>
+    </section>
+
+    <!-- ══════════ HISTORIQUE ══════════ -->
+    <section class="page" id="page-history">
+      <div class="toolbar">
+        <div class="search">
+          <svg class="ico"><use href="#i-search"/></svg>
+          <input id="historySearch" type="search" placeholder="Rechercher dans l'historique…" />
+        </div>
+        <button class="btn ghost" id="clearHistory">
+          <svg class="ico"><use href="#i-trash"/></svg>Tout effacer
+        </button>
+      </div>
+      <div class="history-list" id="historyList"></div>
+      <div class="empty hidden" id="historyEmpty">
+        <svg class="ico big"><use href="#i-history"/></svg>
+        <strong>Aucune dictée pour le moment</strong>
+        <span>Tes transcriptions apparaîtront ici, même après redémarrage.</span>
+      </div>
+    </section>
+
+    <!-- ══════════ RÉGLAGES ══════════ -->
+    <section class="page" id="page-settings">
+      <div class="settings-grid">
+
+        <div class="card span2">
+          <div class="card-head">
+            <span class="card-title">Fournisseur de transcription</span>
+            <span class="meta">Une clé suffit — Aperture fonctionne sans clé</span>
+          </div>
+          <div class="segmented" id="providerSeg">
+            <button data-provider="Gemini">Gemini</button>
+            <button data-provider="Groq">Groq</button>
+            <button data-provider="Cloudflare">Cloudflare</button>
+            <button data-provider="Aperture">Aperture</button>
+          </div>
+
+          <div class="provider-block" data-block="Gemini">
+            <div class="field">
+              <label for="geminiKey">Clé API Gemini</label>
+              <div class="input-row">
+                <input id="geminiKey" type="password" placeholder="AIza…" autocomplete="off" />
+                <button class="icon-btn eye" data-eye="geminiKey" title="Afficher / masquer">👁</button>
+              </div>
+              <span class="hint">Gratuite sur <a href="#" data-url="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a></span>
+            </div>
+            <div class="field">
+              <label for="geminiModel">Modèle</label>
+              <input id="geminiModel" list="geminiModels" placeholder="gemini-2.5-flash" />
+              <datalist id="geminiModels">
+                <option>gemini-2.5-flash</option>
+                <option>gemini-2.5-flash-lite</option>
+                <option>gemini-2.5-pro</option>
+                <option>gemini-3.5-flash-lite</option>
+              </datalist>
+            </div>
+          </div>
+
+          <div class="provider-block hidden" data-block="Groq">
+            <div class="field">
+              <label for="groqKey">Clé API Groq</label>
+              <div class="input-row">
+                <input id="groqKey" type="password" placeholder="gsk_…" autocomplete="off" />
+                <button class="icon-btn eye" data-eye="groqKey" title="Afficher / masquer">👁</button>
+              </div>
+              <span class="hint">Gratuite sur <a href="#" data-url="https://console.groq.com/keys">console.groq.com/keys</a></span>
+            </div>
+            <div class="field">
+              <label for="groqModel">Modèle</label>
+              <input id="groqModel" list="groqModels" placeholder="whisper-large-v3-turbo" />
+              <datalist id="groqModels">
+                <option>whisper-large-v3-turbo</option>
+                <option>whisper-large-v3</option>
+              </datalist>
+            </div>
+          </div>
+
+          <div class="provider-block hidden" data-block="Cloudflare">
+            <div class="field">
+              <label for="cfKey">Clé Cloudflare — format <code>accountId|token</code></label>
+              <div class="input-row">
+                <input id="cfKey" type="password" placeholder="363d…|votre_jeton" autocomplete="off" />
+                <button class="icon-btn eye" data-eye="cfKey" title="Afficher / masquer">👁</button>
+              </div>
+              <span class="hint">10 000 neurones gratuits par jour sur le tableau de bord Cloudflare.</span>
+            </div>
+            <div class="field">
+              <label for="cfModel">Modèle</label>
+              <input id="cfModel" list="cfModels" placeholder="@cf/openai/whisper-large-v3-turbo" />
+              <datalist id="cfModels">
+                <option>@cf/openai/whisper-large-v3-turbo</option>
+                <option>@cf/openai/whisper</option>
+                <option>@cf/deepgram/nova-3</option>
+              </datalist>
+            </div>
+          </div>
+
+          <div class="provider-block hidden" data-block="Aperture">
+            <p class="note">Aperture Sciences transcrit sans compte ni clé. Utile en secours, mais plus lent et limité en taille de fichier.</p>
+          </div>
+
+          <div class="row">
+            <button class="btn" id="testKeyBtn">Tester la clé</button>
+            <span class="test-result" id="testResult"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Langue &amp; style</span></div>
+          <div class="field">
+            <label for="language">Langue de la dictée</label>
+            <select id="language">
+              <option value="auto">Détection automatique</option>
+              <option value="fr">Français</option>
+              <option value="en">Anglais</option>
+              <option value="es">Espagnol</option>
+              <option value="de">Allemand</option>
+              <option value="it">Italien</option>
+              <option value="pt">Portugais</option>
+              <option value="nl">Néerlandais</option>
+              <option value="pl">Polonais</option>
+              <option value="tr">Turc</option>
+              <option value="ru">Russe</option>
+              <option value="ar">Arabe</option>
+              <option value="hi">Hindi</option>
+              <option value="ja">Japonais</option>
+              <option value="ko">Coréen</option>
+              <option value="zh">Chinois</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="prompt">Consigne envoyée au modèle</label>
+            <textarea id="prompt" rows="5" spellcheck="false"></textarea>
+            <span class="hint">Variables : <code>{{lang}}</code>, <code>{{date}}</code>, <code>{{app}}</code>.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Comportement</span></div>
+
+          <label class="switch-row">
+            <span><strong>Streaming</strong><em>Transcrit par blocs de ~3 s pendant que tu parles.</em></span>
+            <span class="switch"><input type="checkbox" id="streaming" /><i></i></span>
+          </label>
+
+          <label class="switch-row">
+            <span><strong>Secours Aperture</strong><em>Si le fournisseur échoue, retente sans clé.</em></span>
+            <span class="switch"><input type="checkbox" id="apertureFallback" /><i></i></span>
+          </label>
+
+          <label class="switch-row">
+            <span><strong>Insertion automatique</strong><em>Tape le texte dans la fenêtre active dès la fin.</em></span>
+            <span class="switch"><input type="checkbox" id="autoType" /><i></i></span>
+          </label>
+
+          <label class="switch-row">
+            <span><strong>Toujours au-dessus</strong><em>La fenêtre reste visible par-dessus les autres.</em></span>
+            <span class="switch"><input type="checkbox" id="alwaysOnTop" /><i></i></span>
+          </label>
+
+          <label class="switch-row">
+            <span><strong>Lancer avec Windows</strong><em>Démarre discrètement au login.</em></span>
+            <span class="switch"><input type="checkbox" id="autostart" /><i></i></span>
+          </label>
+
+          <label class="switch-row">
+            <span><strong>Rester en arrière-plan</strong><em>Fermer la fenêtre la réduit dans la barre des tâches.</em></span>
+            <span class="switch"><input type="checkbox" id="closeToTray" /><i></i></span>
+          </label>
+
+          <div class="field compact-field">
+            <label for="dailyLimit">Limite journalière de dictées (0 = illimitée)</label>
+            <input id="dailyLimit" type="number" min="0" max="9999" step="1" />
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Application</span></div>
+          <div class="field">
+            <label>Raccourci global</label>
+            <div class="hotkey"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Espace</kbd></div>
+            <span class="hint">Fonctionne même quand JoynixScribe est en arrière-plan.</span>
+          </div>
+          <div class="field">
+            <label for="theme">Thème</label>
+            <select id="theme">
+              <option value="dark">Sombre</option>
+              <option value="light">Clair</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Mode compact</label>
+            <button class="btn" id="compactBtn2"><svg class="ico"><use href="#i-expand"/></svg>Réduire en barre flottante</button>
+          </div>
+        </div>
+
+        <div class="card span2">
+          <div class="card-head">
+            <span class="card-title">Données &amp; confidentialité</span>
+            <span class="meta" id="usageLine">0 dictée aujourd'hui</span>
+          </div>
+          <p class="note">Les clés et l'historique sont stockés uniquement sur cet ordinateur. Aucune capture d'écran n'est jamais effectuée : seuls le micro et le nom de l'application active sont utilisés.</p>
+          <div class="row wrap">
+            <button class="btn" id="openDataBtn"><svg class="ico"><use href="#i-folder"/></svg>Ouvrir le dossier de données</button>
+            <button class="btn" id="micSettingsBtn">Autorisation micro Windows</button>
+            <button class="btn ghost" id="resetUsageBtn">Remettre le compteur à zéro</button>
+          </div>
+          <p class="hint mono" id="dataPath"></p>
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <span class="saved" id="savedFlash"></span>
+        <button class="btn primary" id="saveBtn">Enregistrer les réglages</button>
+      </div>
+    </section>
+
+    <!-- ══════════ À PROPOS ══════════ -->
+    <section class="page" id="page-about">
+      <div class="about">
+        <img class="about-logo" src="logo.svg" alt="" />
+        <h2>JoynixScribe <span class="pill" id="versionPill">2.4.0</span></h2>
+        <p class="about-lead">Dictée vocale IA pour Windows et Android. Gratuite, sans abonnement, sans capture d'écran.</p>
+
+        <div class="about-grid">
+          <div class="about-item">
+            <strong>Licence</strong>
+            <span>JoynixScribe Attribution License (JAL) v1.0 — réutilisation libre avec crédit à Joynix, JoynixScribe et le dépôt.</span>
+          </div>
+          <div class="about-item">
+            <strong>Fournisseurs</strong>
+            <span>Gemini, Groq, Cloudflare Workers AI et Aperture. Tu utilises tes propres clés gratuites.</span>
+          </div>
+          <div class="about-item">
+            <strong>Vie privée</strong>
+            <span>Aucune télémétrie. L'audio va directement du micro au fournisseur choisi.</span>
+          </div>
+          <div class="about-item">
+            <strong>Raccourci</strong>
+            <span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Espace</kbd> démarre et arrête la dictée partout.</span>
+          </div>
+        </div>
+
+        <div class="row center">
+          <button class="btn" data-url="https://github.com/joynix28/joynixscribe">GitHub<svg class="ico"><use href="#i-external"/></svg></button>
+          <button class="btn" data-url="https://gitlab.com/joynix28/joynixscribe">GitLab<svg class="ico"><use href="#i-external"/></svg></button>
+          <button class="btn ghost" id="aboutFolderBtn"><svg class="ico"><use href="#i-folder"/></svg>Dossier de données</button>
+        </div>
+        <p class="hint center">© 2026 Joynix — fait avec soin.</p>
+      </div>
+    </section>
+  </main>
 </div>
 
-<!-- Settings modal -->
-<div id="settingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); align-items:center; justify-content:center; z-index:10;">
-  <div class="card" style="width:min(520px,92vw); max-height:88vh; overflow:auto; display:flex; flex-direction:column; gap:14px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div style="font-size:18px; font-weight:700;">Réglages</div>
-      <button class="iconbtn" id="closeSettings">✕</button>
+<!-- barre compacte flottante -->
+<div class="compact-bar" id="compactBar" data-tauri-drag-region>
+  <button class="compact-mic" id="compactMic" aria-label="Dicter">
+    <svg class="ico"><use href="#i-mic"/></svg>
+  </button>
+  <div class="compact-info" data-tauri-drag-region>
+    <div class="compact-line">
+      <span class="compact-state" id="compactState">Prêt</span>
+      <span class="compact-timer mono" id="compactTimer">00:00</span>
     </div>
-
-    <div class="field">
-      <label>Fournisseur principal</label>
-      <select id="provider">
-        <option value="Gemini">Gemini</option>
-        <option value="Groq">Groq</option>
-        <option value="Cloudflare">Cloudflare</option>
-      </select>
-    </div>
-
-    <div class="row">
-      <div class="field"><label>Clé Gemini</label><input id="geminiKey" type="password" placeholder="AIza…" /></div>
-      <div class="field"><label>Modèle Gemini</label><input id="geminiModel" placeholder="gemini-3.5-flash-lite" /></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Clé Groq</label><input id="groqKey" type="password" placeholder="gsk_…" /></div>
-      <div class="field"><label>Modèle Groq</label><input id="groqModel" placeholder="whisper-large-v3-turbo" /></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Clé Cloudflare (accountId|token)</label><input id="cfKey" type="password" placeholder="accountId|token" /></div>
-      <div class="field"><label>Modèle Cloudflare</label><input id="cfModel" placeholder="@cf/openai/whisper-large-v3-turbo" /></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Langue</label><input id="language" placeholder="auto" /></div>
-      <div class="field"><label style="text-transform:none;">Mode streaming</label><input type="checkbox" id="streaming" style="width:auto;" /></div>
-    </div>
-
-    <div class="hint">Les clés sont stockées localement sur cet appareil. Raccourci : Espace pour démarrer/arrêter.</div>
-
-    <div class="actions">
-      <button class="btn primary" id="saveSettings">Sauvegarder</button>
-      <button class="btn" id="loadSettings">Charger</button>
-      <button class="btn" id="micSettingsBtn">Paramètres micro Windows</button>
-    </div>
+    <canvas class="compact-wave" id="compactWave" height="26"></canvas>
   </div>
+  <button class="icon-btn" id="compactClose" title="Quitter le mode compact">
+    <svg class="ico"><use href="#i-close"/></svg>
+  </button>
 </div>
 
-<script>
-  const { invoke } = window.__TAURI__.core;
-  const recordBtn = document.getElementById('recordBtn');
-  const status = document.getElementById('status');
-  const transcript = document.getElementById('transcript');
-  const providerPill = document.getElementById('providerPill');
+<div class="toasts" id="toasts"></div>
 
-  let recording = false;
-  let busy = false;
-
-  function setStatus(text, cls) {
-    status.textContent = text;
-    status.className = 'status' + (cls ? ' ' + cls : '');
-  }
-
-  async function toggleRecord() {
-    if (busy) return;
-    if (!recording) {
-      try {
-        await invoke('record_start');
-        recording = true;
-        recordBtn.textContent = '■ Arrêter';
-        recordBtn.classList.add('recording');
-        setStatus('Enregistrement…', '');
-      } catch (e) { setStatus('Erreur micro: ' + e, 'err'); }
-    } else {
-      recording = false;
-      recordBtn.textContent = '● Parler';
-      recordBtn.classList.remove('recording');
-      busy = true;
-      setStatus('Transcription…', '');
-      try {
-        const wavB64 = await invoke('record_stop');
-        const settings = await gatherSettings();
-        const text = await invoke('transcribe', { settings, wavB64 });
-        transcript.value = transcript.value ? transcript.value + ' ' + text : text;
-        setStatus('Terminé', 'ok');
-      } catch (e) { setStatus('Erreur: ' + e, 'err'); }
-      busy = false;
-    }
-  }
-
-  recordBtn.addEventListener('click', toggleRecord);
-  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !busy) { e.preventDefault(); toggleRecord(); } });
-
-  document.getElementById('copyBtn').addEventListener('click', () => invoke('copy_text', { text: transcript.value }));
-  document.getElementById('typeBtn').addEventListener('click', () => invoke('type_text', { text: transcript.value }));
-  document.getElementById('clearBtn').addEventListener('click', () => { transcript.value = ''; });
-
-  // settings
-  const modal = document.getElementById('settingsModal');
-  document.getElementById('settingsBtn').addEventListener('click', () => { modal.style.display = 'flex'; loadSettingsUI(); });
-  document.getElementById('closeSettings').addEventListener('click', () => { modal.style.display = 'none'; });
-
-  function gatherSettings() {
-    return {
-      provider: document.getElementById('provider').value,
-      gemini_key: document.getElementById('geminiKey').value,
-      groq_key: document.getElementById('groqKey').value,
-      cf_key: document.getElementById('cfKey').value,
-      gemini_model: document.getElementById('geminiModel').value || 'gemini-3.5-flash-lite',
-      groq_model: document.getElementById('groqModel').value || 'whisper-large-v3-turbo',
-      cf_model: document.getElementById('cfModel').value || '@cf/openai/whisper-large-v3-turbo',
-      language: document.getElementById('language').value || 'auto',
-      streaming: document.getElementById('streaming').checked,
-    };
-  }
-
-  async function loadSettingsUI() {
-    try {
-      const s = await invoke('load_settings');
-      document.getElementById('provider').value = s.provider || 'Gemini';
-      document.getElementById('geminiKey').value = s.gemini_key || '';
-      document.getElementById('groqKey').value = s.groq_key || '';
-      document.getElementById('cfKey').value = s.cf_key || '';
-      document.getElementById('geminiModel').value = s.gemini_model || '';
-      document.getElementById('groqModel').value = s.groq_model || '';
-      document.getElementById('cfModel').value = s.cf_model || '';
-      document.getElementById('language').value = s.language || 'auto';
-      document.getElementById('streaming').checked = !!s.streaming;
-      providerPill.textContent = s.provider || 'Gemini';
-    } catch (e) {}
-  }
-
-  document.getElementById('saveSettings').addEventListener('click', async () => {
-    const s = gatherSettings();
-    await invoke('save_settings', { settings: s });
-    providerPill.textContent = s.provider;
-    modal.style.display = 'none';
-    setStatus('Réglages sauvegardés', 'ok');
-  });
-  document.getElementById('loadSettings').addEventListener('click', loadSettingsUI);
-  document.getElementById('micSettingsBtn').addEventListener('click', () => invoke('open_mic_settings'));
-
-  // mic check
-  (async () => {
-    const ok = await invoke('has_mic');
-    const warn = document.getElementById('micWarn');
-    if (!ok) { warn.style.display = 'block'; warn.textContent = 'Aucun micro détecté. Vérifie les paramètres Windows.'; }
-  })();
-
-  loadSettingsUI();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
-EOF
-echo written

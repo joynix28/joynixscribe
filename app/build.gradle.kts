@@ -40,8 +40,8 @@ android {
         applicationId = "com.botillon.flowscribe"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.2.0"
+        versionCode = 5
+        versionName = "2.4.0"
         vectorDrawables { useSupportLibrary = true }
     }
 

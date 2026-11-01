@@ -1,5 +1,7 @@
 package com.botillon.flowscribe.ui.screens
 
+import com.botillon.flowscribe.BuildConfig
+
 import android.text.format.DateUtils
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -323,7 +325,7 @@ private fun TopBar() {
             )
         }
         StatusPill(
-            text = "v2.1",
+            text = "v" + BuildConfig.VERSION_NAME,
             tint = MaterialTheme.colorScheme.secondary,
             icon = Icons.Rounded.Bolt,
         )
