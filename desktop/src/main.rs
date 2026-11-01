@@ -55,7 +55,8 @@ struct App {
 }
 
 impl App {
-    fn new(_cc: &eframe::CreationContext) -> Self {
+    fn new(cc: &eframe::CreationContext) -> Self {
+        cc.egui_ctx.set_visuals(egui::Visuals::dark());
         Self {
             settings: Settings::default(),
             show_settings: false,
@@ -173,9 +174,9 @@ impl App {
 
     fn stop_recording(&mut self) {
         self.recording = false;
-        self.audio.lock().unwrap().stop();
+        let rate = self.audio.lock().unwrap().sample_rate();
         let samples = self.samples.lock().unwrap().clone();
-        let wav = audio::encode_wav(&samples, self.sample_rate);
+        let wav = audio::encode_wav(&samples, rate);
         self.busy = true;
         self.status = "Transcription...".into();
         let settings = self.settings.clone();
